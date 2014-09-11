@@ -18,7 +18,7 @@
 #include <linux/dcache.h>
 #include <linux/ioctl.h>
 
-#include "kdbus.h"
+#include <uapi/linux/kdbus.h>
 
 /* all exported addresses are 64 bit */
 #define KDBUS_PTR(addr) ((void __user *)(uintptr_t)(addr))
