@@ -1,0 +1,436 @@
+<?xml version='1.0'?> <!--*-nxml-*-->
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.2//EN"
+        "http://www.oasis-open.org/docbook/xml/4.2/docbookx.dtd">
+
+<refentry id="kdbus.endpoint">
+
+  <refentryinfo>
+    <title>kdbus.endpoint</title>
+    <productname>kdbus.endpoint</productname>
+  </refentryinfo>
+
+  <refmeta>
+    <refentrytitle>kdbus.endpoint</refentrytitle>
+    <manvolnum>7</manvolnum>
+  </refmeta>
+
+  <refnamediv>
+    <refname>kdbus.endpoint</refname>
+    <refpurpose>kdbus endpoint</refpurpose>
+  </refnamediv>
+
+  <refsect1>
+    <title>Description</title>
+
+    <para>
+      Endpoints are entry points to a bus (see
+      <citerefentry>
+        <refentrytitle>kdbus.bus</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>).
+      By default, each bus has a default
+      endpoint called 'bus'. The bus owner has the ability to create custom
+      endpoints with specific names, permissions, and policy databases
+      (see below). An endpoint is presented as file underneath the directory
+      of the parent bus.
+    </para>
+    <para>
+      To create a custom endpoint, open the default endpoint
+      (<literal>bus</literal>) and use the
+      <constant>KDBUS_CMD_ENDPOINT_MAKE</constant> ioctl with
+      <type>struct kdbus_cmd</type>. Custom endpoints always have a policy
+      database that, by default, forbids any operation. You have to explicitly
+      install policy entries to allow any operation on this endpoint.
+    </para>
+    <para>
+      Once <constant>KDBUS_CMD_ENDPOINT_MAKE</constant> succeeded, the new
+      endpoint will appear in the filesystem
+      (<citerefentry>
+        <refentrytitle>kdbus.bus</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>), and the used file descriptor will manage the
+      newly created endpoint resource. It cannot be used to manage further
+      resources and must be kept open as long as the endpoint is needed. The
+      endpoint will be terminated as soon as the file descriptor is closed.
+    </para>
+    <para>
+      Endpoint names may be chosen freely except for one restriction: the name
+      must be prefixed with the numeric effective UID of the creator and a dash.
+      This is required to avoid namespace clashes between different users. When
+      creating an endpoint, the name that is passed in must be properly
+      formatted or the kernel will refuse creation of the endpoint. Example:
+      <literal>1047-my-endpoint</literal> is an acceptable name for an
+      endpoint registered by a user with UID 1047. However,
+      <literal>1024-my-endpoint</literal> is not, and neither is
+      <literal>my-endpoint</literal>. The UID must be provided in the
+      user-namespace of the bus.
+    </para>
+    <para>
+      To create connections to a bus, use <constant>KDBUS_CMD_HELLO</constant>
+      on a file descriptor returned by <function>open()</function> on an
+      endpoint node. See
+      <citerefentry>
+        <refentrytitle>kdbus.connection</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
+      for further details.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Creating custom endpoints</title>
+    <para>
+      To create a new endpoint, the
+      <constant>KDBUS_CMD_ENDPOINT_MAKE</constant> command is used. Along with
+      the endpoint's name, which will be used to expose the endpoint in the
+      <citerefentry>
+        <refentrytitle>kdbus.fs</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>,
+      the command also optionally takes items to set up the endpoint's
+      <citerefentry>
+        <refentrytitle>kdbus.policy</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>.
+      <constant>KDBUS_CMD_ENDPOINT_MAKE</constant> takes a
+      <type>struct kdbus_cmd</type> argument.
+    </para>
+    <programlisting>
+struct kdbus_cmd {
+  __u64 size;
+  __u64 flags;
+  __u64 return_flags;
+  struct kdbus_item items[0];
+};
+    </programlisting>
+
+    <para>The fields in this struct are described below.</para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>size</varname></term>
+        <listitem><para>
+          The overall size of the struct, including its items.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>flags</varname></term>
+        <listitem><para>The flags for creation.</para>
+          <variablelist>
+            <varlistentry>
+              <term><constant>KDBUS_MAKE_ACCESS_GROUP</constant></term>
+              <listitem>
+                <para>Make the endpoint file group-accessible.</para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><constant>KDBUS_MAKE_ACCESS_WORLD</constant></term>
+              <listitem>
+                <para>Make the endpoint file world-accessible.</para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><constant>KDBUS_FLAG_NEGOTIATE</constant></term>
+              <listitem>
+                <para>
+                  Requests a set of valid flags for this ioctl. When this bit is
+                  set, no action is taken; the ioctl will return
+                  <errorcode>0</errorcode>, and the <varname>flags</varname>
+                  field will have all bits set that are valid for this command.
+                  The <constant>KDBUS_FLAG_NEGOTIATE</constant> bit will be
+                  cleared by the operation.
+                </para>
+              </listitem>
+            </varlistentry>
+          </variablelist>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>return_flags</varname></term>
+        <listitem><para>
+          Flags returned by the kernel. Currently unused and always set to
+          <constant>0</constant> by the kernel.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>items</varname></term>
+        <listitem>
+          <para>
+            The following items are expected for
+            <constant>KDBUS_CMD_ENDPOINT_MAKE</constant>.
+          </para>
+          <variablelist>
+            <varlistentry>
+              <term><constant>KDBUS_ITEM_MAKE_NAME</constant></term>
+              <listitem>
+                <para>Contains a string to identify the endpoint name.</para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><constant>KDBUS_ITEM_NAME</constant></term>
+              <term><constant>KDBUS_ITEM_POLICY_ACCESS</constant></term>
+              <listitem>
+                <para>
+                  These items are used to set the policy attached to the
+                  endpoint. For more details on bus and endpoint policies, see
+                  <citerefentry>
+                    <refentrytitle>kdbus.policy</refentrytitle>
+                    <manvolnum>7</manvolnum>
+                  </citerefentry>.
+                </para>
+              </listitem>
+            </varlistentry>
+          </variablelist>
+          <para>
+            Unrecognized items are rejected, and the ioctl will fail with
+            <varname>errno</varname> set to <varname>EINVAL</varname>.
+          </para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>Updating endpoints</title>
+    <para>
+      To update an existing endpoint, the
+      <constant>KDBUS_CMD_ENDPOINT_UPDATE</constant> command is used on the file
+      descriptor that was used to create the update, using
+      <constant>KDBUS_CMD_ENDPOINT_MAKE</constant>. The only relevant detail of
+      the endpoint that can be updated is the policy. When the command is
+      employed, the policy of the endpoint is <emphasis>replaced</emphasis>
+      atomically with the new set of rules.
+      The command takes a <type>struct kdbus_cmd</type> argument.
+    </para>
+    <programlisting>
+struct kdbus_cmd {
+  __u64 size;
+  __u64 flags;
+  __u64 return_flags;
+  struct kdbus_item items[0];
+};
+    </programlisting>
+
+    <para>The fields in this struct are described below.</para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>size</varname></term>
+        <listitem><para>
+          The overall size of the struct, including its items.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>flags</varname></term>
+        <listitem><para>
+          Unused for this command.
+          <constant>KDBUS_FLAG_NEGOTIATE</constant> is accepted to probe for
+          valid flags. If set, the ioctl will return <errorcode>0</errorcode>,
+          and the <varname>flags</varname> field is set to
+          <constant>0</constant>.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>return_flags</varname></term>
+        <listitem><para>
+          Flags returned by the kernel. Currently unused and always set to
+          <constant>0</constant> by the kernel.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>items</varname></term>
+        <listitem>
+          <para>
+            The following items are expected for
+            <constant>KDBUS_CMD_ENDPOINT_UPDATE</constant>.
+          </para>
+          <variablelist>
+            <varlistentry>
+              <term><constant>KDBUS_ITEM_NAME</constant></term>
+              <term><constant>KDBUS_ITEM_POLICY_ACCESS</constant></term>
+              <listitem>
+                <para>
+                  These items are used to set the policy attached to the
+                  endpoint. For more details on bus and endpoint policies, see
+                  <citerefentry>
+                    <refentrytitle>kdbus.policy</refentrytitle>
+                    <manvolnum>7</manvolnum>
+                  </citerefentry>.
+                  Existing policy is atomically replaced with the new rules
+                  provided.
+                </para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><constant>KDBUS_ITEM_NEGOTIATE</constant></term>
+              <listitem><para>
+                With this item, programs can <emphasis>probe</emphasis> the
+                kernel for known item types. See
+                <citerefentry>
+                  <refentrytitle>kdbus.item</refentrytitle>
+                  <manvolnum>7</manvolnum>
+                </citerefentry>
+                for more details.
+              </para></listitem>
+            </varlistentry>
+          </variablelist>
+          <para>
+            Unrecognized items are rejected, and the ioctl will fail with
+            <varname>errno</varname> set to <constant>EINVAL</constant>.
+          </para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>Return value</title>
+    <para>
+      On success, all mentioned ioctl commands return <errorcode>0</errorcode>;
+      on error, <errorcode>-1</errorcode> is returned, and
+      <varname>errno</varname> is set to indicate the error.
+      If the issued ioctl is illegal for the file descriptor used,
+      <varname>errno</varname> will be set to <constant>ENOTTY</constant>.
+    </para>
+
+    <refsect2>
+      <title>
+        <constant>KDBUS_CMD_ENDPOINT_MAKE</constant> may fail with the
+        following errors
+      </title>
+
+      <variablelist>
+        <varlistentry>
+          <term><constant>EINVAL</constant></term>
+          <listitem><para>
+            The flags supplied in the <type>struct kdbus_cmd</type>
+            are invalid.
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>EINVAL</constant></term>
+          <listitem><para>
+            Illegal combination of <constant>KDBUS_ITEM_NAME</constant> and
+            <constant>KDBUS_ITEM_POLICY_ACCESS</constant> was provided.
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>EEXIST</constant></term>
+          <listitem><para>
+            An endpoint of that name already exists.
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>EPERM</constant></term>
+          <listitem><para>
+            The calling user is not privileged. See
+            <citerefentry>
+              <refentrytitle>kdbus</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>
+            for information about privileged users.
+          </para></listitem>
+        </varlistentry>
+      </variablelist>
+    </refsect2>
+
+    <refsect2>
+      <title>
+        <constant>KDBUS_CMD_ENDPOINT_UPDATE</constant> may fail with the
+        following errors
+      </title>
+
+      <variablelist>
+        <varlistentry>
+          <term><constant>EINVAL</constant></term>
+          <listitem><para>
+            The flags supplied in <type>struct kdbus_cmd</type>
+            are invalid.
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>EINVAL</constant></term>
+          <listitem><para>
+            Illegal combination of <constant>KDBUS_ITEM_NAME</constant> and
+            <constant>KDBUS_ITEM_POLICY_ACCESS</constant> was provided.
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>EEXIST</constant></term>
+          <listitem><para>
+            An endpoint of that name already exists.
+          </para></listitem>
+        </varlistentry>
+      </variablelist>
+    </refsect2>
+  </refsect1>
+
+  <refsect1>
+    <title>See Also</title>
+    <simplelist type="inline">
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.bus</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.endpoint</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.fs</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.item</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.message</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.name</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.pool</refentrytitle>
+           <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+    </simplelist>
+  </refsect1>
+</refentry>

@@ -1,0 +1,360 @@
+<?xml version='1.0'?> <!--*-nxml-*-->
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.2//EN"
+        "http://www.oasis-open.org/docbook/xml/4.2/docbookx.dtd">
+
+<refentry id="kdbus.bus">
+
+  <refentryinfo>
+    <title>kdbus.bus</title>
+    <productname>kdbus.bus</productname>
+  </refentryinfo>
+
+  <refmeta>
+    <refentrytitle>kdbus.bus</refentrytitle>
+    <manvolnum>7</manvolnum>
+  </refmeta>
+
+  <refnamediv>
+    <refname>kdbus.bus</refname>
+    <refpurpose>kdbus bus</refpurpose>
+  </refnamediv>
+
+  <refsect1>
+    <title>Description</title>
+
+    <para>
+      A bus is a resource that is shared between connections in order to
+      transmit messages (see
+      <citerefentry>
+        <refentrytitle>kdbus.message</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
+      ).
+      Each bus is independent, and operations on the bus will not have any
+      effect on other buses. A bus is a management entity that controls the
+      addresses of its connections, their policies and message transactions
+      performed via this bus.
+    </para>
+    <para>
+      Each bus is bound to the mount instance it was created on. It has a
+      custom name that is unique across all buses of a domain. In
+      <citerefentry>
+        <refentrytitle>kdbus.fs</refentrytitle>
+        <manvolnum>7</manvolnum>
+      </citerefentry>
+      , a bus is presented as a directory. No operations can be performed on
+      the bus itself; instead you need to perform the operations on an endpoint
+      associated with the bus. Endpoints are accessible as files underneath the
+      bus directory. A default endpoint called <constant>bus</constant> is
+      provided on each bus.
+    </para>
+    <para>
+      Bus names may be chosen freely except for one restriction: the name must
+      be prefixed with the numeric effective UID of the creator and a dash. This
+      is required to avoid namespace clashes between different users. When
+      creating a bus, the name that is passed in must be properly formatted, or
+      the kernel will refuse creation of the bus. Example:
+      <literal>1047-foobar</literal> is an acceptable name for a bus
+      registered by a user with UID 1047. However,
+      <literal>1024-foobar</literal> is not, and neither is
+      <literal>foobar</literal>. The UID must be provided in the
+      user-namespace of the bus owner.
+    </para>
+    <para>
+      To create a new bus, you need to open the control file of a domain and
+      employ the <constant>KDBUS_CMD_BUS_MAKE</constant> ioctl. The control
+      file descriptor that was used to issue
+      <constant>KDBUS_CMD_BUS_MAKE</constant> must not previously have been
+      used for any other control-ioctl and must be kept open for the entire
+      life-time of the created bus. Closing it will immediately cleanup the
+      entire bus and all its associated resources and endpoints. Every control
+      file descriptor can only be used to create a single new bus; from that
+      point on, it is not used for any further communication until the final
+      <citerefentry>
+        <refentrytitle>close</refentrytitle>
+        <manvolnum>2</manvolnum>
+      </citerefentry>
+      .
+    </para>
+    <para>
+      Each bus will generate a random, 128-bit UUID upon creation. This UUID
+      will be returned to creators of connections through
+      <varname>kdbus_cmd_hello.id128</varname> and can be used to uniquely
+      identify buses, even across different machines or containers. The UUID
+      will have its variant bits set to <literal>DCE</literal>, and denote
+      version 4 (random). For more details on UUIDs, see <ulink
+      url="https://en.wikipedia.org/wiki/Universally_unique_identifier">
+      the Wikipedia article on UUIDs</ulink>.
+    </para>
+
+  </refsect1>
+
+  <refsect1>
+    <title>Creating buses</title>
+    <para>
+      To create a new bus, the <constant>KDBUS_CMD_BUS_MAKE</constant>
+      command is used. It takes a <type>struct kdbus_cmd</type> argument.
+    </para>
+    <programlisting>
+struct kdbus_cmd {
+  __u64 size;
+  __u64 flags;
+  __u64 return_flags;
+  struct kdbus_item items[0];
+};
+    </programlisting>
+
+    <para>The fields in this struct are described below.</para>
+
+    <variablelist>
+      <varlistentry>
+        <term><varname>size</varname></term>
+        <listitem><para>
+          The overall size of the struct, including its items.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>flags</varname></term>
+        <listitem><para>The flags for creation.</para>
+          <variablelist>
+            <varlistentry>
+              <term><constant>KDBUS_MAKE_ACCESS_GROUP</constant></term>
+              <listitem>
+                <para>Make the bus file group-accessible.</para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><constant>KDBUS_MAKE_ACCESS_WORLD</constant></term>
+              <listitem>
+                <para>Make the bus file world-accessible.</para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><constant>KDBUS_FLAG_NEGOTIATE</constant></term>
+              <listitem>
+                <para>
+                  Requests a set of valid flags for this ioctl. When this bit is
+                  set, no action is taken; the ioctl will return
+                  <errorcode>0</errorcode>, and the <varname>flags</varname>
+                  field will have all bits set that are valid for this command.
+                  The <constant>KDBUS_FLAG_NEGOTIATE</constant> bit will be
+                  cleared by the operation.
+                </para>
+              </listitem>
+            </varlistentry>
+          </variablelist>
+        </listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>return_flags</varname></term>
+        <listitem><para>
+          Flags returned by the kernel. Currently unused and always set to
+          <constant>0</constant> by the kernel.
+        </para></listitem>
+      </varlistentry>
+
+      <varlistentry>
+        <term><varname>items</varname></term>
+        <listitem>
+          <para>
+            The following items (see
+            <citerefentry>
+              <refentrytitle>kdbus.item</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>
+            ) are expected for <constant>KDBUS_CMD_BUS_MAKE</constant>.
+          </para>
+          <variablelist>
+            <varlistentry>
+              <term><constant>KDBUS_ITEM_MAKE_NAME</constant></term>
+              <listitem>
+                <para>
+                  Contains a null-terminated string that identifies the
+                  bus. The name must be unique across the kdbus domain and
+                  must start with the effective UID of the caller, followed by
+                  a '<literal>-</literal>' (dash). This item is mandatory.
+                </para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><constant>KDBUS_ITEM_BLOOM_PARAMETER</constant></term>
+              <listitem>
+                <para>
+                  Bus-wide bloom parameters passed in a
+                  <type>struct kdbus_bloom_parameter</type>. These settings are
+                  copied back to new connections verbatim. This item is
+                  mandatory. See
+                  <citerefentry>
+                    <refentrytitle>kdbus.item</refentrytitle>
+                    <manvolnum>7</manvolnum>
+                  </citerefentry>
+                  for a more detailed description of this item.
+                </para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><constant>KDBUS_ITEM_ATTACH_FLAGS_RECV</constant></term>
+              <listitem>
+                <para>
+                  An optional item that contains a set of required attach flags
+                  that connections must allow. This item is used as a
+                  negotiation measure during connection creation. If connections
+                  do not satisfy the bus requirements, they are not allowed on
+                  the bus. If not set, the bus does not require any metadata to
+                  be attached; in this case connections are free to set their
+                  own attach flags.
+                </para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><constant>KDBUS_ITEM_ATTACH_FLAGS_SEND</constant></term>
+              <listitem>
+                <para>
+                  An optional item that contains a set of attach flags that are
+                  returned to connections when they query the bus creator
+                  metadata. If not set, no metadata is returned.
+                </para>
+              </listitem>
+            </varlistentry>
+
+            <varlistentry>
+              <term><constant>KDBUS_ITEM_NEGOTIATE</constant></term>
+              <listitem><para>
+                With this item, programs can <emphasis>probe</emphasis> the
+                kernel for known item types. See
+                <citerefentry>
+                  <refentrytitle>kdbus.item</refentrytitle>
+                  <manvolnum>7</manvolnum>
+                </citerefentry>
+                for more details.
+              </para></listitem>
+            </varlistentry>
+          </variablelist>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+
+    <para>
+      Unrecognized items are rejected, and the ioctl will fail with
+      <varname>errno</varname> set to <constant>EINVAL</constant>.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Return value</title>
+    <para>
+      On success, all mentioned ioctl commands return <errorcode>0</errorcode>;
+      on error, <errorcode>-1</errorcode> is returned, and
+      <varname>errno</varname> is set to indicate the error.
+      If the issued ioctl is illegal for the file descriptor used,
+      <varname>errno</varname> will be set to <constant>ENOTTY</constant>.
+    </para>
+
+    <refsect2>
+      <title>
+        <constant>KDBUS_CMD_BUS_MAKE</constant> may fail with the following
+        errors
+      </title>
+
+      <variablelist>
+        <varlistentry>
+          <term><constant>EBADMSG</constant></term>
+          <listitem><para>
+            A mandatory item is missing.
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>EINVAL</constant></term>
+          <listitem><para>
+            The flags supplied in the <constant>struct kdbus_cmd</constant>
+            are invalid or the supplied name does not start with the current
+            UID and a '<literal>-</literal>' (dash).
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>EEXIST</constant></term>
+          <listitem><para>
+            A bus of that name already exists.
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>ESHUTDOWN</constant></term>
+          <listitem><para>
+            The kdbus mount instance for the bus was already shut down.
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>EMFILE</constant></term>
+          <listitem><para>
+            The maximum number of buses for the current user is exhausted.
+          </para></listitem>
+        </varlistentry>
+      </variablelist>
+    </refsect2>
+  </refsect1>
+
+  <refsect1>
+    <title>See Also</title>
+    <simplelist type="inline">
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.connection</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.endpoint</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.fs</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.item</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.message</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.name</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.pool</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+    </simplelist>
+  </refsect1>
+</refentry>

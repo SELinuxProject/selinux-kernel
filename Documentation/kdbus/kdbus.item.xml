@@ -1,0 +1,840 @@
+<?xml version='1.0'?> <!--*-nxml-*-->
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.2//EN"
+        "http://www.oasis-open.org/docbook/xml/4.2/docbookx.dtd">
+
+<refentry id="kdbus">
+
+  <refentryinfo>
+    <title>kdbus.item</title>
+    <productname>kdbus item</productname>
+  </refentryinfo>
+
+  <refmeta>
+    <refentrytitle>kdbus.item</refentrytitle>
+    <manvolnum>7</manvolnum>
+  </refmeta>
+
+  <refnamediv>
+    <refname>kdbus.item</refname>
+    <refpurpose>kdbus item structure, layout and usage</refpurpose>
+  </refnamediv>
+
+  <refsect1>
+    <title>Description</title>
+
+    <para>
+      To flexibly augment transport structures, data blobs of type
+      <type>struct kdbus_item</type> can be attached to the structs passed
+      into the ioctls. Some ioctls make items of certain types mandatory,
+      others are optional. Items that are unsupported by ioctls they are
+      attached to will cause the ioctl to fail with <varname>errno</varname>
+      set to <constant>EINVAL</constant>.
+      Items are also used for information stored in a connection's
+      <emphasis>pool</emphasis>, such as received messages, name lists or
+      requested connection or bus owner information. Depending on the type of
+      an item, its total size is either fixed or variable.
+    </para>
+
+    <refsect2>
+      <title>Chaining items</title>
+      <para>
+        Whenever items are used as part of the kdbus kernel API, they are
+        embedded in structs that are embedded inside structs that themselves
+        include a size field containing the overall size of the structure.
+        This allows multiple items to be chained up, and an item iterator
+        (see below) is capable of detecting the end of an item chain.
+      </para>
+    </refsect2>
+
+    <refsect2>
+      <title>Alignment</title>
+      <para>
+        The kernel expects all items to be aligned to 8-byte boundaries.
+        Unaligned items will cause the ioctl they are used with to fail
+        with <varname>errno</varname> set to <constant>EINVAL</constant>.
+        An item that has an unaligned size itself hence needs to be padded
+        if it is followed by another item.
+      </para>
+    </refsect2>
+
+    <refsect2>
+      <title>Iterating items</title>
+      <para>
+        A simple iterator would iterate over the items until the items have
+        reached the embedding structure's overall size. An example
+        implementation is shown below.
+      </para>
+
+      <programlisting><![CDATA[
+#define KDBUS_ALIGN8(val) (((val) + 7) & ~7)
+
+#define KDBUS_ITEM_NEXT(item) \
+    (typeof(item))(((uint8_t *)item) + KDBUS_ALIGN8((item)->size))
+
+#define KDBUS_ITEM_FOREACH(item, head, first)                      \
+    for (item = (head)->first;                                     \
+         ((uint8_t *)(item) < (uint8_t *)(head) + (head)->size) && \
+          ((uint8_t *)(item) >= (uint8_t *)(head));                \
+         item = KDBUS_ITEM_NEXT(item))
+      ]]></programlisting>
+    </refsect2>
+  </refsect1>
+
+  <refsect1>
+    <title>Item layout</title>
+    <para>
+      A <type>struct kdbus_item</type> consists of a
+      <varname>size</varname> field, describing its overall size, and a
+      <varname>type</varname> field, both 64 bit wide. They are followed by
+      a union to store information that is specific to the item's type.
+      The struct layout is shown below.
+    </para>
+
+    <programlisting>
+struct kdbus_item {
+  __u64 size;
+  __u64 type;
+  /* item payload - see below */
+  union {
+    __u8 data[0];
+    __u32 data32[0];
+    __u64 data64[0];
+    char str[0];
+
+    __u64 id;
+    struct kdbus_vec vec;
+    struct kdbus_creds creds;
+    struct kdbus_pids pids;
+    struct kdbus_audit audit;
+    struct kdbus_caps caps;
+    struct kdbus_timestamp timestamp;
+    struct kdbus_name name;
+    struct kdbus_bloom_parameter bloom_parameter;
+    struct kdbus_bloom_filter bloom_filter;
+    struct kdbus_memfd memfd;
+    int fds[0];
+    struct kdbus_notify_name_change name_change;
+    struct kdbus_notify_id_change id_change;
+    struct kdbus_policy_access policy_access;
+  };
+};
+    </programlisting>
+
+    <para>
+      <type>struct kdbus_item</type> should never be used to allocate
+      an item instance, as its size may grow in future releases of the API.
+      Instead, it should be manually assembled by storing the
+      <varname>size</varname>, <varname>type</varname> and payload to a
+      struct of its own.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Item types</title>
+
+    <refsect2>
+      <title>Negotiation item</title>
+      <variablelist>
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_NEGOTIATE</constant></term>
+          <listitem><para>
+            With this item is attached to any ioctl, programs can
+            <emphasis>probe</emphasis> the kernel for known item items.
+            The item carries an array of <type>uint64_t</type> values in
+            <varname>item.data64</varname>, each set to an item type to
+            probe. The kernel will reset each member of this array that is
+            not recognized as valid item type to <constant>0</constant>.
+            This way, users can negotiate kernel features at start-up to
+            keep newer userspace compatible with older kernels. This item
+            is never attached by the kernel in response to any command.
+          </para></listitem>
+        </varlistentry>
+      </variablelist>
+    </refsect2>
+
+    <refsect2>
+      <title>Command specific items</title>
+      <variablelist>
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_PAYLOAD_VEC</constant></term>
+          <term><constant>KDBUS_ITEM_PAYLOAD_OFF</constant></term>
+          <listitem><para>
+            Messages are directly copied by the sending process into the
+            receiver's
+            <citerefentry>
+              <refentrytitle>kdbus.pool</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>.
+            This way, two peers can exchange data by effectively doing a
+            single-copy from one process to another; the kernel will not buffer
+            the data anywhere else. <constant>KDBUS_ITEM_PAYLOAD_VEC</constant>
+            is used when <emphasis>sending</emphasis> message. The item
+            references a memory address when the payload data can be found.
+            <constant>KDBUS_ITEM_PAYLOAD_OFF</constant> is used when messages
+            are <emphasis>received</emphasis>, and the
+            <constant>offset</constant> value describes the offset inside the
+            receiving connection's
+            <citerefentry>
+              <refentrytitle>kdbus.pool</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>
+            where the message payload can be found. See
+            <citerefentry>
+              <refentrytitle>kdbus.message</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>
+            for more information on passing of payload data along with a
+            message.
+            <programlisting>
+struct kdbus_vec {
+  __u64 size;
+  union {
+    __u64 address;
+    __u64 offset;
+  };
+};
+            </programlisting>
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_PAYLOAD_MEMFD</constant></term>
+          <listitem><para>
+            Transports a file descriptor of a <emphasis>memfd</emphasis> in
+            <type>struct kdbus_memfd</type> in <varname>item.memfd</varname>.
+            The <varname>size</varname> field has to match the actual size of
+            the memfd that was specified when it was created. The
+            <varname>start</varname> parameter denotes the offset inside the
+            memfd at which the referenced payload starts. See
+            <citerefentry>
+              <refentrytitle>kdbus.message</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>
+            for more information on passing of payload data along with a
+            message.
+            <programlisting>
+struct kdbus_memfd {
+  __u64 start;
+  __u64 size;
+  int fd;
+  __u32 __pad;
+};
+            </programlisting>
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_FDS</constant></term>
+          <listitem><para>
+            Contains an array of <emphasis>file descriptors</emphasis>.
+            When used with <constant>KDBUS_CMD_SEND</constant>, the values of
+            this array must be filled with valid file descriptor numbers.
+            When received as item attached to a message, the array will
+            contain the numbers of the installed file descriptors, or
+            <constant>-1</constant> in case an error occurred.
+            file descriptor.
+            In either case, the number of entries in the array is derived from
+            the item's total size. See
+            <citerefentry>
+              <refentrytitle>kdbus.message</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>
+            for more information.
+          </para></listitem>
+        </varlistentry>
+      </variablelist>
+    </refsect2>
+
+    <refsect2>
+      <title>Items specific to some commands</title>
+      <variablelist>
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_CANCEL_FD</constant></term>
+          <listitem><para>
+            Transports a file descriptor that can be used to cancel a
+            synchronous <constant>KDBUS_CMD_SEND</constant> operation by
+            writing to it. The file descriptor is stored in
+            <varname>item.fd[0]</varname>. The item may only contain one
+            file descriptor. See
+            <citerefentry>
+              <refentrytitle>kdbus.message</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>
+            for more information on this item and how to use it.
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_BLOOM_PARAMETER</constant></term>
+          <listitem><para>
+            Contains a set of <emphasis>bloom parameters</emphasis> as
+            <type>struct kdbus_bloom_parameter</type> in
+            <varname>item.bloom_parameter</varname>.
+            The item is passed from userspace to kernel during the
+            <constant>KDBUS_CMD_BUS_MAKE</constant> ioctl, and returned
+            verbatim when <constant>KDBUS_CMD_HELLO</constant> is called.
+            The kernel does not use the bloom parameters, but they need to
+            be known by each connection on the bus in order to define the
+            bloom filter hash details. See
+            <citerefentry>
+              <refentrytitle>kdbus.match</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>
+            for more information on matching and bloom filters.
+            <programlisting>
+struct kdbus_bloom_parameter {
+  __u64 size;
+  __u64 n_hash;
+};
+            </programlisting>
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_BLOOM_FILTER</constant></term>
+          <listitem><para>
+            Carries a <emphasis>bloom filter</emphasis> as
+            <type>struct kdbus_bloom_filter</type> in
+            <varname>item.bloom_filter</varname>. It is mandatory to send this
+            item attached to a <type>struct kdbus_msg</type>, in case the
+            message is a signal. This item is never transported from kernel to
+            userspace. See
+            <citerefentry>
+              <refentrytitle>kdbus.match</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>
+            for more information on matching and bloom filters.
+            <programlisting>
+struct kdbus_bloom_filter {
+  __u64 generation;
+  __u64 data[0];
+};
+            </programlisting>
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_BLOOM_MASK</constant></term>
+          <listitem><para>
+            Transports a <emphasis>bloom mask</emphasis> as binary data blob
+            stored in <varname>item.data</varname>. This item is used to
+            describe a match into a connection's match database. See
+            <citerefentry>
+              <refentrytitle>kdbus.match</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>
+            for more information on matching and bloom filters.
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_DST_NAME</constant></term>
+          <listitem><para>
+            Contains a <emphasis>well-known name</emphasis> to send a
+            message to, as null-terminated string in
+            <varname>item.str</varname>. This item is used with
+            <constant>KDBUS_CMD_SEND</constant>. See
+            <citerefentry>
+              <refentrytitle>kdbus.message</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>
+            for more information on how to send a message.
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_MAKE_NAME</constant></term>
+          <listitem><para>
+            Contains a <emphasis>bus name</emphasis> or
+            <emphasis>endpoint name</emphasis>, stored as null-terminated
+            string in <varname>item.str</varname>. This item is sent from
+            userspace to kernel when buses or endpoints are created, and
+            returned back to userspace when the bus creator information is
+            queried. See
+            <citerefentry>
+              <refentrytitle>kdbus.bus</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>
+            and
+            <citerefentry>
+              <refentrytitle>kdbus.endpoint</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>.
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_ATTACH_FLAGS_SEND</constant></term>
+          <term><constant>KDBUS_ITEM_ATTACH_FLAGS_RECV</constant></term>
+          <listitem><para>
+            Contains a set of <emphasis>attach flags</emphasis> at
+            <emphasis>send</emphasis> or <emphasis>receive</emphasis> time. See
+            <citerefentry>
+              <refentrytitle>kdbus</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>,
+            <citerefentry>
+              <refentrytitle>kdbus.bus</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry> and
+            <citerefentry>
+              <refentrytitle>kdbus.connection</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>
+            for more information on attach flags.
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_ID</constant></term>
+          <listitem><para>
+            Transports a connection's <emphasis>numerical ID</emphasis> of
+            a connection as <type>uint64_t</type> value in
+            <varname>item.id</varname>.
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_NAME</constant></term>
+          <listitem><para>
+            Transports a name associated with the
+            <emphasis>name registry</emphasis> as null-terminated string as
+            <type>struct kdbus_name</type> in
+            <varname>item.name</varname>. The <varname>flags</varname>
+            contains the flags of the name. See
+            <citerefentry>
+              <refentrytitle>kdbus.name</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>
+            for more information on how to access the name registry of a bus.
+            <programlisting>
+struct kdbus_name {
+  __u64 flags;
+  char name[0];
+};
+            </programlisting>
+          </para></listitem>
+        </varlistentry>
+      </variablelist>
+    </refsect2>
+
+    <refsect2>
+      <title>Items attached by the kernel as metadata</title>
+
+      <variablelist>
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_TIMESTAMP</constant></term>
+          <listitem><para>
+            Contains both the <emphasis>monotonic</emphasis> and the
+            <emphasis>realtime</emphasis> timestamp, taken when the message
+            was processed on the kernel side.
+            Stored as <type>struct kdbus_timestamp</type> in
+            <varname>item.timestamp</varname>.
+            <programlisting>
+struct kdbus_timestamp {
+  __u64 seqnum;
+  __u64 monotonic_ns;
+  __u64 realtime_ns;
+};
+            </programlisting>
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_CREDS</constant></term>
+          <listitem><para>
+            Contains a set of <emphasis>user</emphasis> and
+            <emphasis>group</emphasis> information as 32-bit values, in the
+            usual four flavors: real, effective, saved and filesystem related.
+            Stored as <type>struct kdbus_creds</type> in
+            <varname>item.creds</varname>.
+            <programlisting>
+struct kdbus_creds {
+  __u32 uid;
+  __u32 euid;
+  __u32 suid;
+  __u32 fsuid;
+  __u32 gid;
+  __u32 egid;
+  __u32 sgid;
+  __u32 fsgid;
+};
+            </programlisting>
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_PIDS</constant></term>
+          <listitem><para>
+            Contains the <emphasis>PID</emphasis>, <emphasis>TID</emphasis>
+            and <emphasis>parent PID (PPID)</emphasis> of a remote peer.
+            Stored as <type>struct kdbus_pids</type> in
+            <varname>item.pids</varname>.
+            <programlisting>
+struct kdbus_pids {
+  __u64 pid;
+  __u64 tid;
+  __u64 ppid;
+};
+            </programlisting>
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_AUXGROUPS</constant></term>
+          <listitem><para>
+            Contains the <emphasis>auxiliary (supplementary) groups</emphasis>
+            a remote peer is a member of, stored as array of
+            <type>uint32_t</type> values in <varname>item.data32</varname>.
+            The array length can be determined by looking at the item's total
+            size, subtracting the size of the header and and dividing the
+            remainder by <constant>sizeof(uint32_t)</constant>.
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_OWNED_NAME</constant></term>
+          <listitem><para>
+            Contains a <emphasis>well-known name</emphasis> currently owned
+            by a connection. The name is stored as null-terminated string in
+            <varname>item.str</varname>. Its length can also be derived from
+            the item's total size.
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_TID_COMM</constant> [*]</term>
+          <listitem><para>
+            Contains the <emphasis>comm</emphasis> string of a task's
+            <emphasis>TID</emphasis> (thread ID), stored as null-terminated
+            string in <varname>item.str</varname>. Its length can also be
+            derived from the item's total size. Receivers of this item should
+            not use its contents for any kind of security measures. See below.
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_PID_COMM</constant> [*]</term>
+          <listitem><para>
+            Contains the <emphasis>comm</emphasis> string of a task's
+            <emphasis>PID</emphasis> (process ID), stored as null-terminated
+            string in <varname>item.str</varname>. Its length can also be
+            derived from the item's total size. Receivers of this item should
+            not use its contents for any kind of security measures. See below.
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_EXE</constant> [*]</term>
+          <listitem><para>
+            Contains the <emphasis>path to the executable</emphasis> of a task,
+            stored as null-terminated string in <varname>item.str</varname>. Its
+            length can also be derived from the item's total size. Receivers of
+            this item should not use its contents for any kind of security
+            measures. See below.
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_CMDLINE</constant> [*]</term>
+          <listitem><para>
+            Contains the <emphasis>command line arguments</emphasis> of a
+            task, stored as an <emphasis>array</emphasis> of null-terminated
+            strings in <varname>item.str</varname>. The total length of all
+            strings in the array can be derived from the item's total size.
+            Receivers of this item should not use its contents for any kind
+            of security measures. See below.
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_CGROUP</constant></term>
+          <listitem><para>
+            Contains the <emphasis>cgroup path</emphasis> of a task, stored
+            as null-terminated string in <varname>item.str</varname>. Its
+            length can also be derived from the item's total size.
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_CAPS</constant></term>
+          <listitem><para>
+            Contains sets of <emphasis>capabilities</emphasis>, stored as
+            <type>struct kdbus_caps</type> in <varname>item.caps</varname>.
+            As the item size may increase in the future, programs should be
+            written in a way that it takes
+            <varname>item.caps.last_cap</varname> into account, and derive
+            the number of sets and rows from the item size and the reported
+            number of valid capability bits.
+            <programlisting>
+struct kdbus_caps {
+  __u32 last_cap;
+  __u32 caps[0];
+};
+            </programlisting>
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_SECLABEL</constant></term>
+          <listitem><para>
+            Contains the <emphasis>LSM label</emphasis> of a task, stored as
+            null-terminated string in <varname>item.str</varname>. Its length
+            can also be derived from the item's total size.
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_AUDIT</constant></term>
+          <listitem><para>
+            Contains the audit <emphasis>sessionid</emphasis> and
+            <emphasis>loginuid</emphasis> of a task, stored as
+            <type>struct kdbus_audit</type> in
+            <varname>item.audit</varname>.
+            <programlisting>
+struct kdbus_audit {
+  __u32 sessionid;
+  __u32 loginuid;
+};
+            </programlisting>
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_CONN_DESCRIPTION</constant></term>
+          <listitem><para>
+            Contains the <emphasis>connection description</emphasis>, as set
+            by <constant>KDBUS_CMD_HELLO</constant> or
+            <constant>KDBUS_CMD_CONN_UPDATE</constant>, stored as
+            null-terminated string in <varname>item.str</varname>. Its length
+            can also be derived from the item's total size.
+          </para></listitem>
+        </varlistentry>
+      </variablelist>
+
+      <para>
+        All metadata is automatically translated into the
+        <emphasis>namespaces</emphasis> of the task that receives them. See
+        <citerefentry>
+          <refentrytitle>kdbus.message</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+        for more information.
+      </para>
+
+      <para>
+        [*] Note that the content stored in metadata items of type
+        <constant>KDBUS_ITEM_TID_COMM</constant>,
+        <constant>KDBUS_ITEM_PID_COMM</constant>,
+        <constant>KDBUS_ITEM_EXE</constant> and
+        <constant>KDBUS_ITEM_CMDLINE</constant>
+        can easily be tampered by the sending tasks. Therefore, they should
+        <emphasis>not</emphasis> be used for any sort of security relevant
+        assumptions. The only reason they are transmitted is to let
+        receivers know about details that were set when metadata was
+        collected, even though the task they were collected from is not
+        active any longer when the items are received.
+      </para>
+    </refsect2>
+
+    <refsect2>
+      <title>Items used for policy entries, matches and notifications</title>
+
+      <variablelist>
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_POLICY_ACCESS</constant></term>
+          <listitem><para>
+            This item describes a <emphasis>policy access</emphasis> entry to
+            access the policy database of a
+            <citerefentry>
+              <refentrytitle>kdbus.bus</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry> or
+            <citerefentry>
+              <refentrytitle>kdbus.endpoint</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>.
+            Please refer to
+            <citerefentry>
+              <refentrytitle>kdbus.policy</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>
+            for more information on the policy database and how to access it.
+            <programlisting>
+struct kdbus_policy_access {
+  __u64 type;
+  __u64 access;
+  __u64 id;
+};
+            </programlisting>
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_ID_ADD</constant></term>
+          <term><constant>KDBUS_ITEM_ID_REMOVE</constant></term>
+          <listitem><para>
+            This item is sent as attachment to a
+            <emphasis>kernel notification</emphasis> and indicates that a
+            new connection was created on the bus, or that a connection was
+            disconnected, respectively. It stores a
+            <type>struct kdbus_notify_id_change</type> in
+            <varname>item.id_change</varname>.
+            The <varname>id</varname> field contains the numeric ID of the
+            connection that was added or removed, and <varname>flags</varname>
+            is set to the connection flags, as passed by
+            <constant>KDBUS_CMD_HELLO</constant>. See
+            <citerefentry>
+              <refentrytitle>kdbus.match</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>
+            and
+            <citerefentry>
+              <refentrytitle>kdbus.message</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>
+            for more information on matches and notification messages.
+            <programlisting>
+struct kdbus_notify_id_change {
+  __u64 id;
+  __u64 flags;
+};
+            </programlisting>
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_NAME_ADD</constant></term>
+          <term><constant>KDBUS_ITEM_NAME_REMOVE</constant></term>
+          <term><constant>KDBUS_ITEM_NAME_CHANGE</constant></term>
+          <listitem><para>
+            This item is sent as attachment to a
+            <emphasis>kernel notification</emphasis> and indicates that a
+            <emphasis>well-known name</emphasis> appeared, disappeared or
+            transferred to another owner on the bus. It stores a
+            <type>struct kdbus_notify_name_change</type> in
+            <varname>item.name_change</varname>.
+            <varname>old_id</varname> describes the former owner of the name
+            and is set to <constant>0</constant> values in case of
+            <constant>KDBUS_ITEM_NAME_ADD</constant>.
+            <varname>new_id</varname> describes the new owner of the name and
+            is set to <constant>0</constant> values in case of
+            <constant>KDBUS_ITEM_NAME_REMOVE</constant>.
+            The <varname>name</varname> field contains the well-known name the
+            notification is about, as null-terminated string. See
+            <citerefentry>
+              <refentrytitle>kdbus.match</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>
+            and
+            <citerefentry>
+              <refentrytitle>kdbus.message</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>
+            for more information on matches and notification messages.
+            <programlisting>
+struct kdbus_notify_name_change {
+  struct kdbus_notify_id_change old_id;
+  struct kdbus_notify_id_change new_id;
+  char name[0];
+};
+            </programlisting>
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_REPLY_TIMEOUT</constant></term>
+          <listitem><para>
+            This item is sent as attachment to a
+            <emphasis>kernel notification</emphasis>. It informs the receiver
+            that an expected reply to a message was not received in time.
+            The remote peer ID and the message cookie is stored in the message
+            header. See
+            <citerefentry>
+              <refentrytitle>kdbus.message</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>
+            for more information about messages, timeouts and notifications.
+          </para></listitem>
+        </varlistentry>
+
+        <varlistentry>
+          <term><constant>KDBUS_ITEM_REPLY_DEAD</constant></term>
+          <listitem><para>
+            This item is sent as attachment to a
+            <emphasis>kernel notification</emphasis>. It informs the receiver
+            that a remote connection a reply is expected from was disconnected
+            before that reply was sent. The remote peer ID and the message
+            cookie is stored in the message header. See
+            <citerefentry>
+              <refentrytitle>kdbus.message</refentrytitle>
+              <manvolnum>7</manvolnum>
+            </citerefentry>
+            for more information about messages, timeouts and notifications.
+          </para></listitem>
+        </varlistentry>
+      </variablelist>
+    </refsect2>
+  </refsect1>
+
+  <refsect1>
+    <title>See Also</title>
+    <simplelist type="inline">
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.bus</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.connection</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.endpoint</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.fs</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.message</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.name</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>kdbus.pool</refentrytitle>
+          <manvolnum>7</manvolnum>
+        </citerefentry>
+      </member>
+      <member>
+        <citerefentry>
+          <refentrytitle>memfd_create</refentrytitle>
+          <manvolnum>2</manvolnum>
+        </citerefentry>
+      </member>
+    </simplelist>
+  </refsect1>
+
+</refentry>
