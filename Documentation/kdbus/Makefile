@@ -18,10 +18,10 @@ HTMLFILES := $(patsubst %.xml, %.html, $(XMLFILES))
 XMLTO_ARGS := -m $(obj)/stylesheet.xsl
 
 %.7: %.xml
-	xmlto man $(XMLTO_ARGS) -o . $<
+	xmlto man $(XMLTO_ARGS) -o $(obj) $<
 
 %.html: %.xml
-	xmlto html-nochunks $(XMLTO_ARGS) -o . $<
+	xmlto html-nochunks $(XMLTO_ARGS) -o $(obj) $<
 
 mandocs: $(MANFILES)
 
