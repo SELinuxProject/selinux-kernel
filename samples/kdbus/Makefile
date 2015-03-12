@@ -8,3 +8,4 @@ always := $(hostprogs-y)
 HOSTCFLAGS_kdbus-workers.o +=		\
 	-I$(objtree)/usr/include/	\
 	-I$(objtree)/include/uapi/
+HOSTLOADLIBES_kdbus-workers := -lrt
