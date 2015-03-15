@@ -787,8 +787,8 @@ static int child_run(struct child *c)
 	 * The 2nd item contains a vector to memory we want to send. It
 	 * can be content of any type. In our case, we're sending a one-byte
 	 * string only. The memory referenced by this item will be copied into
-	 * the pool of the receveiver connection, and does not need to be
-	 * valid after the command is employed.
+	 * the pool of the receiver connection, and does not need to be valid
+	 * after the command is employed.
 	 */
 	item = KDBUS_ITEM_NEXT(item);
 	item->type = KDBUS_ITEM_PAYLOAD_VEC;
