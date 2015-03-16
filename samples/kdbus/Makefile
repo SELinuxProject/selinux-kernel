@@ -5,7 +5,5 @@ hostprogs-y += kdbus-workers
 
 always := $(hostprogs-y)
 
-HOSTCFLAGS_kdbus-workers.o +=		\
-	-I$(objtree)/usr/include/	\
-	-I$(objtree)/include/uapi/
+HOSTCFLAGS_kdbus-workers.o += -I$(objtree)/usr/include
 HOSTLOADLIBES_kdbus-workers := -lrt
