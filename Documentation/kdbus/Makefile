@@ -15,7 +15,7 @@ XMLFILES := $(addprefix $(obj)/,$(DOCS))
 MANFILES := $(patsubst %.xml, %.7, $(XMLFILES))
 HTMLFILES := $(patsubst %.xml, %.html, $(XMLFILES))
 
-XMLTO_ARGS := -m $(obj)/stylesheet.xsl
+XMLTO_ARGS := -m $(srctree)/$(src)/stylesheet.xsl
 
 %.7: %.xml
 	xmlto man $(XMLTO_ARGS) -o $(obj) $<
