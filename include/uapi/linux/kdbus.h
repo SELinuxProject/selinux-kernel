@@ -5,8 +5,8 @@
  * your option) any later version.
  */
 
-#ifndef _KDBUS_UAPI_H_
-#define _KDBUS_UAPI_H_
+#ifndef _UAPI_KDBUS_H_
+#define _UAPI_KDBUS_H_
 
 #include <linux/ioctl.h>
 #include <linux/types.h>
@@ -976,4 +976,4 @@ enum kdbus_ioctl_type {
 					     struct kdbus_cmd_match),
 };
 
-#endif /* _KDBUS_UAPI_H_ */
+#endif /* _UAPI_KDBUS_H_ */
