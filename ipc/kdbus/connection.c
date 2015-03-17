@@ -1997,9 +1997,8 @@ int kdbus_cmd_send(struct kdbus_conn *conn, struct file *f, void __user *argp)
 
 	if (argv[1].item) {
 		cancel_fd = fget(argv[1].item->fds[0]);
-		if (IS_ERR(cancel_fd)) {
-			ret = PTR_ERR(cancel_fd);
-			cancel_fd = NULL;
+		if (!cancel_fd) {
+			ret = -EBADF;
 			goto exit;
 		}
 
