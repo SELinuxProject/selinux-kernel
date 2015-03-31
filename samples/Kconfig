@@ -55,6 +55,13 @@ config SAMPLE_KDB
 	  Build an example of how to dynamically add the hello
 	  command to the kdb shell.
 
+config SAMPLE_KDBUS
+	bool "Build kdbus API example"
+	depends on KDBUS
+	help
+	  Build an example of how the kdbus API can be used from
+	  userspace.
+
 config SAMPLE_RPMSG_CLIENT
 	tristate "Build rpmsg client sample -- loadable modules only"
 	depends on RPMSG && m

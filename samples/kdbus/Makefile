@@ -1,7 +1,7 @@
 # kbuild trick to avoid linker error. Can be omitted if a module is built.
 obj- := dummy.o
 
-hostprogs-y += kdbus-workers
+hostprogs-$(CONFIG_SAMPLE_KDBUS) += kdbus-workers
 
 always := $(hostprogs-y)
 
