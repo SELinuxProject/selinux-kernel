@@ -33,11 +33,13 @@ OBJS= \
 
 all: kdbus-test
 
+include ../lib.mk
+
 %.o: %.c
-	gcc $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
 kdbus-test: $(OBJS)
-	gcc $(CFLAGS) $^ $(LDLIBS) -o $@
+	$(CC) $(CFLAGS) $^ $(LDLIBS) -o $@
 
 run_tests:
 	./kdbus-test --tap
