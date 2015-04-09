@@ -66,6 +66,12 @@
             ... to retrieve information on a connection
           </para></listitem>
         </varlistentry>
+        <varlistentry>
+          <term><constant>KDBUS_CMD_BUS_CREATOR_INFO</constant></term>
+          <listitem><para>
+            ... to retrieve information about a connection's bus creator
+          </para></listitem>
+        </varlistentry>
       </variablelist>
 
     </para>
