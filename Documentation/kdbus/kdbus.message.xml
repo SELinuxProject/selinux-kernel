@@ -242,8 +242,8 @@ struct kdbus_cmd_send {
                   </citerefentry>.
 
                   The offset of the reply message in the sender's pool is stored
-                  in in <varname>offset_reply</varname> when the ioctl has
-                  returned without error. Hence, there is no need for another
+                  in <varname>reply</varname> when the ioctl has returned without
+                  error. Hence, there is no need for another
                   <constant>KDBUS_CMD_RECV</constant> ioctl or anything else to
                   receive the reply.
                 </para>
