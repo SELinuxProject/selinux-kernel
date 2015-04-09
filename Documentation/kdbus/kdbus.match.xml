@@ -55,7 +55,7 @@
       possibly along with some other rules to further limit the match.
 
       The kernel will match the signal message's bloom filter against the
-      connections bloom mask (simply by &amp;-ing it), and will decide whether
+      connection's bloom mask (simply by &amp;-ing it), and will decide whether
       the message should be delivered to a connection.
     </para>
     <para>
@@ -138,9 +138,9 @@
       <title>Generations</title>
 
       <para>
-        Uploaded matches may contain multiple masks, which have are as large as
-        the bloom size defined by the bus. Each block of a mask is called a
-        <emphasis>generation</emphasis>, starting at index 0.
+        Uploaded matches may contain multiple masks, which have to be as large
+        as the bloom filter size defined by the bus. Each block of a mask is
+        called a <emphasis>generation</emphasis>, starting at index 0.
 
         At match time, when a signal is about to be delivered, a bloom mask
         generation is passed, which denotes which of the bloom masks the filter
@@ -171,7 +171,8 @@
     <title>Adding a match</title>
     <para>
       To add a match, the <constant>KDBUS_CMD_MATCH_ADD</constant> ioctl is
-      used, which takes a struct of the struct described below.
+      used, which takes a <type>struct kdbus_cmd_match</type> as an argument
+      described below.
 
       Note that each of the items attached to this command will internally
       create one match <emphasis>rule</emphasis>, and the collection of them,
@@ -266,7 +267,8 @@ struct kdbus_cmd_match {
                   An item that carries the bloom filter mask to match against
                   in its data field. The payload size must match the bloom
                   filter size that was specified when the bus was created.
-                  See the section below for more information on bloom filters.
+                  See the "Bloom filters" section above for more information on
+                  bloom filters.
                 </para>
               </listitem>
             </varlistentry>

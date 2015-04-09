@@ -50,8 +50,7 @@
       <citerefentry>
         <refentrytitle>kdbus.match</refentrytitle>
         <manvolnum>7</manvolnum>
-      </citerefentry>
-      ).
+      </citerefentry>).
     </para>
     <para>
       Messages synthesized and sent directly by the kernel will carry the
@@ -595,13 +594,13 @@ struct kdbus_cmd_info {
       </varlistentry>
 
       <varlistentry>
-        <term><varname>flags</varname></term>
+        <term><varname>attach_flags</varname></term>
         <listitem><para>
           Specifies which metadata items should be attached to the answer. See
           <citerefentry>
             <refentrytitle>kdbus.message</refentrytitle>
             <manvolnum>7</manvolnum>
-          </citerefentry>
+          </citerefentry>.
         </para></listitem>
       </varlistentry>
 
@@ -986,8 +985,7 @@ struct kdbus_cmd {
         <term><varname>items</varname></term>
         <listitem>
           <para>
-            Items to describe the connection details to be updated. The
-            following item types are supported.
+            The following item types are supported.
           </para>
           <variablelist>
             <varlistentry>

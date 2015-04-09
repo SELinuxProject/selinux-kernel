@@ -344,8 +344,7 @@ struct kdbus_cmd_send {
     </variablelist>
 
     <para>
-      The fields in this struct are described below.
-      The message referenced the <varname>msg_address</varname> above has
+      The message referenced by the <varname>msg_address</varname> above has
       the following layout.
     </para>
 
@@ -528,7 +527,7 @@ struct kdbus_msg {
               <listitem>
                 <para>
                   Actual data records containing the payload. See section
-                  "Passing of Payload Data".
+                  "Message payload".
                 </para>
               </listitem>
             </varlistentry>
@@ -707,7 +706,7 @@ struct kdbus_cmd_recv {
         <listitem><para>
           Whenever a message with <constant>KDBUS_MSG_SIGNAL</constant> is sent
           but cannot be queued on a peer (e.g., as it contains FDs but the peer
-          does not support FDs, or there is no space left in the peer's pool..)
+          does not support FDs, or there is no space left in the peer's pool)
           the 'dropped_msgs' counter of the peer is incremented. On the next
           RECV ioctl, the 'dropped_msgs' field is copied into the ioctl struct
           and cleared on the peer. If it was non-zero, the
@@ -963,7 +962,7 @@ struct kdbus_msg_info {
         <varlistentry>
           <term><constant>E2BIG</constant></term>
           <listitem><para>
-            Too many items
+            Too many items.
           </para></listitem>
         </varlistentry>
 
@@ -1172,7 +1171,7 @@ struct kdbus_msg_info {
         <varlistentry>
           <term><constant>EAGAIN</constant></term>
           <listitem><para>
-            No message found in the queue
+            No message found in the queue.
           </para></listitem>
         </varlistentry>
       </variablelist>

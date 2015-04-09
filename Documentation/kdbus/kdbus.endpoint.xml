@@ -201,7 +201,7 @@ struct kdbus_cmd {
     <para>
       To update an existing endpoint, the
       <constant>KDBUS_CMD_ENDPOINT_UPDATE</constant> command is used on the file
-      descriptor that was used to create the update, using
+      descriptor that was used to create the endpoint, using
       <constant>KDBUS_CMD_ENDPOINT_MAKE</constant>. The only relevant detail of
       the endpoint that can be updated is the policy. When the command is
       employed, the policy of the endpoint is <emphasis>replaced</emphasis>

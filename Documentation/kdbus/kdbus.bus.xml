@@ -28,8 +28,7 @@
       <citerefentry>
         <refentrytitle>kdbus.message</refentrytitle>
         <manvolnum>7</manvolnum>
-      </citerefentry>
-      ).
+      </citerefentry>).
       Each bus is independent, and operations on the bus will not have any
       effect on other buses. A bus is a management entity that controls the
       addresses of its connections, their policies and message transactions
@@ -42,7 +41,7 @@
         <refentrytitle>kdbus.fs</refentrytitle>
         <manvolnum>7</manvolnum>
       </citerefentry>
-      , a bus is presented as a directory. No operations can be performed on
+      a bus is presented as a directory. No operations can be performed on
       the bus itself; instead you need to perform the operations on an endpoint
       associated with the bus. Endpoints are accessible as files underneath the
       bus directory. A default endpoint called <constant>bus</constant> is
@@ -165,8 +164,8 @@ struct kdbus_cmd {
             <citerefentry>
               <refentrytitle>kdbus.item</refentrytitle>
               <manvolnum>7</manvolnum>
-            </citerefentry>
-            ) are expected for <constant>KDBUS_CMD_BUS_MAKE</constant>.
+            </citerefentry>)
+            are expected for <constant>KDBUS_CMD_BUS_MAKE</constant>.
           </para>
           <variablelist>
             <varlistentry>

@@ -379,7 +379,7 @@
         <listitem>
           <para>
             When a message is sent (<constant>KDBUS_CMD_SEND</constant>),
-            information about the sending task and the sending connection are
+            information about the sending task and the sending connection is
             collected. This metadata will be attached to the message when it
             arrives in the receiver's pool. If the connection sending the
             message installed faked credentials (see
@@ -514,7 +514,7 @@
         To let the kernel know which metadata information to attach as items
         to the aforementioned commands, it uses a bitmask. In those, the
         following <emphasis>attach flags</emphasis> are currently supported.
-        Both the the <varname>attach_flags_recv</varname> and
+        Both the <varname>attach_flags_recv</varname> and
         <varname>attach_flags_send</varname> fields of
         <type>struct kdbus_cmd_hello</type>, as well as the payload of the
         <constant>KDBUS_ITEM_ATTACH_FLAGS_SEND</constant> and
@@ -924,7 +924,7 @@
 
     <para>
       These ioctls, along with the structs they transport, are explained in
-      detail in the other documents linked to in the 'see also' section below.
+      detail in the other documents linked to in the "See Also" section below.
     </para>
   </refsect1>
 

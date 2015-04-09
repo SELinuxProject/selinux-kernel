@@ -139,7 +139,7 @@ struct kdbus_item {
           <term><constant>KDBUS_ITEM_NEGOTIATE</constant></term>
           <listitem><para>
             With this item is attached to any ioctl, programs can
-            <emphasis>probe</emphasis> the kernel for known item items.
+            <emphasis>probe</emphasis> the kernel for known item types.
             The item carries an array of <type>uint64_t</type> values in
             <varname>item.data64</varname>, each set to an item type to
             probe. The kernel will reset each member of this array that is
@@ -232,7 +232,6 @@ struct kdbus_memfd {
             When received as item attached to a message, the array will
             contain the numbers of the installed file descriptors, or
             <constant>-1</constant> in case an error occurred.
-            file descriptor.
             In either case, the number of entries in the array is derived from
             the item's total size. See
             <citerefentry>
@@ -487,7 +486,7 @@ struct kdbus_pids {
             a remote peer is a member of, stored as array of
             <type>uint32_t</type> values in <varname>item.data32</varname>.
             The array length can be determined by looking at the item's total
-            size, subtracting the size of the header and and dividing the
+            size, subtracting the size of the header and dividing the
             remainder by <constant>sizeof(uint32_t)</constant>.
           </para></listitem>
         </varlistentry>
@@ -748,7 +747,7 @@ struct kdbus_notify_name_change {
             This item is sent as attachment to a
             <emphasis>kernel notification</emphasis>. It informs the receiver
             that an expected reply to a message was not received in time.
-            The remote peer ID and the message cookie is stored in the message
+            The remote peer ID and the message cookie are stored in the message
             header. See
             <citerefentry>
               <refentrytitle>kdbus.message</refentrytitle>
@@ -765,7 +764,7 @@ struct kdbus_notify_name_change {
             <emphasis>kernel notification</emphasis>. It informs the receiver
             that a remote connection a reply is expected from was disconnected
             before that reply was sent. The remote peer ID and the message
-            cookie is stored in the message header. See
+            cookie are stored in the message header. See
             <citerefentry>
               <refentrytitle>kdbus.message</refentrytitle>
               <manvolnum>7</manvolnum>
