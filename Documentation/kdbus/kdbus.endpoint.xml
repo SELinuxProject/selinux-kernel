@@ -369,13 +369,6 @@ struct kdbus_cmd {
             <constant>KDBUS_ITEM_POLICY_ACCESS</constant> was provided.
           </para></listitem>
         </varlistentry>
-
-        <varlistentry>
-          <term><constant>EEXIST</constant></term>
-          <listitem><para>
-            An endpoint of that name already exists.
-          </para></listitem>
-        </varlistentry>
       </variablelist>
     </refsect2>
   </refsect1>
