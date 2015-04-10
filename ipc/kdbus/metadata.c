@@ -678,13 +678,8 @@ struct kdbus_meta_conn *kdbus_meta_conn_unref(struct kdbus_meta_conn *mc)
 static void kdbus_meta_conn_collect_timestamp(struct kdbus_meta_conn *mc,
 					      struct kdbus_kmsg *kmsg)
 {
-	struct timespec ts;
-
-	ktime_get_ts(&ts);
-	mc->ts.monotonic_ns = timespec_to_ns(&ts);
-
-	ktime_get_real_ts(&ts);
-	mc->ts.realtime_ns = timespec_to_ns(&ts);
+	mc->ts.monotonic_ns = ktime_get_ns();
+	mc->ts.realtime_ns = ktime_get_real_ns();
 
 	if (kmsg)
 		mc->ts.seqnum = kmsg->seq;

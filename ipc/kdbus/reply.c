@@ -204,11 +204,9 @@ void kdbus_reply_list_scan_work(struct work_struct *work)
 		container_of(work, struct kdbus_conn, work.work);
 	struct kdbus_reply *reply, *reply_tmp;
 	u64 deadline = ~0ULL;
-	struct timespec64 ts;
 	u64 now;
 
-	ktime_get_ts64(&ts);
-	now = timespec64_to_ns(&ts);
+	now = ktime_get_ns();
 
 	mutex_lock(&conn->lock);
 	if (!kdbus_conn_active(conn)) {
