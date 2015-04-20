@@ -675,7 +675,7 @@ int kdbus_pool_slice_copy(const struct kdbus_pool_slice *slice_dst,
 		}
 
 		kaddr = (char __force __user *)kmap(page) + page_off;
-		n_read = f_src->f_op->read(f_src, kaddr, copy_len, &off_src);
+		n_read = __vfs_read(f_src, kaddr, copy_len, &off_src);
 		kunmap(page);
 		mark_page_accessed(page);
 		flush_dcache_page(page);
