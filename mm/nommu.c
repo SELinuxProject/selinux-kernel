@@ -62,6 +62,7 @@ void *high_memory;
 EXPORT_SYMBOL(high_memory);
 struct page *mem_map;
 unsigned long max_mapnr;
+EXPORT_SYMBOL(max_mapnr);
 unsigned long highest_memmap_pfn;
 struct percpu_counter vm_committed_as;
 int sysctl_overcommit_memory = OVERCOMMIT_GUESS; /* heuristic overcommit */
@@ -1015,7 +1016,7 @@ static int validate_mmap_request(struct file *file,
 		 * device */
 		if (!file->f_op->get_unmapped_area)
 			capabilities &= ~NOMMU_MAP_DIRECT;
-		if (!file->f_op->read)
+		if (!(file->f_mode & FMODE_CAN_READ))
 			capabilities &= ~NOMMU_MAP_COPY;
 
 		/* The file shall have been opened with read permission. */
@@ -1239,7 +1240,7 @@ static int do_mmap_private(struct vm_area_struct *vma,
 
 		old_fs = get_fs();
 		set_fs(KERNEL_DS);
-		ret = vma->vm_file->f_op->read(vma->vm_file, base, len, &fpos);
+		ret = __vfs_read(vma->vm_file, base, len, &fpos);
 		set_fs(old_fs);
 
 		if (ret < 0)
