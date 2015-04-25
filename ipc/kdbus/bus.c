@@ -143,10 +143,6 @@ static struct kdbus_bus *kdbus_bus_new(struct kdbus_domain *domain,
 				      KDBUS_ATTACH_CREDS |
 				      KDBUS_ATTACH_PIDS |
 				      KDBUS_ATTACH_AUXGROUPS |
-				      KDBUS_ATTACH_TID_COMM |
-				      KDBUS_ATTACH_PID_COMM |
-				      KDBUS_ATTACH_EXE |
-				      KDBUS_ATTACH_CMDLINE |
 				      KDBUS_ATTACH_CGROUP |
 				      KDBUS_ATTACH_CAPS |
 				      KDBUS_ATTACH_SECLABEL |

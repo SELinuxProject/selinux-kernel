@@ -58,11 +58,6 @@
  * @ppid:		PPID of process
  * @auxgrps:		Auxiliary groups
  * @n_auxgrps:		Number of items in @auxgrps
- * @tid_comm:		TID comm line
- * @pid_comm:		PID comm line
- * @exe_path:		Executable path
- * @root_path:		Root-FS path
- * @cmdline:		Command-line
  * @cgroup:		Full cgroup path
  * @caps:		Capabilities
  * @caps_namespace:	User-namespace of @caps
@@ -88,18 +83,6 @@ struct kdbus_meta_proc {
 	/* KDBUS_ITEM_AUXGROUPS */
 	kgid_t *auxgrps;
 	size_t n_auxgrps;
-
-	/* KDBUS_ITEM_TID_COMM */
-	char tid_comm[TASK_COMM_LEN];
-	/* KDBUS_ITEM_PID_COMM */
-	char pid_comm[TASK_COMM_LEN];
-
-	/* KDBUS_ITEM_EXE */
-	struct path exe_path;
-	struct path root_path;
-
-	/* KDBUS_ITEM_CMDLINE */
-	char *cmdline;
 
 	/* KDBUS_ITEM_CGROUP */
 	char *cgroup;
@@ -174,8 +157,6 @@ static void kdbus_meta_proc_free(struct kref *kref)
 	struct kdbus_meta_proc *mp = container_of(kref, struct kdbus_meta_proc,
 						  kref);
 
-	path_put(&mp->exe_path);
-	path_put(&mp->root_path);
 	put_user_ns(mp->caps_namespace);
 	put_pid(mp->ppid);
 	put_pid(mp->tgid);
@@ -183,7 +164,6 @@ static void kdbus_meta_proc_free(struct kref *kref)
 
 	kfree(mp->seclabel);
 	kfree(mp->auxgrps);
-	kfree(mp->cmdline);
 	kfree(mp->cgroup);
 	kfree(mp);
 }
@@ -266,65 +246,6 @@ static int kdbus_meta_proc_collect_auxgroups(struct kdbus_meta_proc *mp)
 	mp->n_auxgrps = info->ngroups;
 	put_group_info(info);
 	mp->valid |= KDBUS_ATTACH_AUXGROUPS;
-
-	return 0;
-}
-
-static void kdbus_meta_proc_collect_tid_comm(struct kdbus_meta_proc *mp)
-{
-	get_task_comm(mp->tid_comm, current);
-	mp->valid |= KDBUS_ATTACH_TID_COMM;
-}
-
-static void kdbus_meta_proc_collect_pid_comm(struct kdbus_meta_proc *mp)
-{
-	get_task_comm(mp->pid_comm, current->group_leader);
-	mp->valid |= KDBUS_ATTACH_PID_COMM;
-}
-
-static void kdbus_meta_proc_collect_exe(struct kdbus_meta_proc *mp)
-{
-	struct mm_struct *mm;
-
-	mm = get_task_mm(current);
-	if (!mm)
-		return;
-
-	down_read(&mm->mmap_sem);
-	if (mm->exe_file) {
-		mp->exe_path = mm->exe_file->f_path;
-		path_get(&mp->exe_path);
-		get_fs_root(current->fs, &mp->root_path);
-		mp->valid |= KDBUS_ATTACH_EXE;
-	}
-	up_read(&mm->mmap_sem);
-
-	mmput(mm);
-}
-
-static int kdbus_meta_proc_collect_cmdline(struct kdbus_meta_proc *mp)
-{
-	struct mm_struct *mm;
-	char *cmdline;
-
-	mm = get_task_mm(current);
-	if (!mm)
-		return 0;
-
-	if (!mm->arg_end) {
-		mmput(mm);
-		return 0;
-	}
-
-	cmdline = strndup_user((const char __user *)mm->arg_start,
-			       mm->arg_end - mm->arg_start);
-	mmput(mm);
-
-	if (IS_ERR(cmdline))
-		return PTR_ERR(cmdline);
-
-	mp->cmdline = cmdline;
-	mp->valid |= KDBUS_ATTACH_CMDLINE;
 
 	return 0;
 }
@@ -433,10 +354,6 @@ int kdbus_meta_proc_collect(struct kdbus_meta_proc *mp, u64 what)
 	if (!mp || !(what & (KDBUS_ATTACH_CREDS |
 			     KDBUS_ATTACH_PIDS |
 			     KDBUS_ATTACH_AUXGROUPS |
-			     KDBUS_ATTACH_TID_COMM |
-			     KDBUS_ATTACH_PID_COMM |
-			     KDBUS_ATTACH_EXE |
-			     KDBUS_ATTACH_CMDLINE |
 			     KDBUS_ATTACH_CGROUP |
 			     KDBUS_ATTACH_CAPS |
 			     KDBUS_ATTACH_SECLABEL |
@@ -463,32 +380,6 @@ int kdbus_meta_proc_collect(struct kdbus_meta_proc *mp, u64 what)
 		if (ret < 0)
 			goto exit_unlock;
 		mp->collected |= KDBUS_ATTACH_AUXGROUPS;
-	}
-
-	if ((what & KDBUS_ATTACH_TID_COMM) &&
-	    !(mp->collected & KDBUS_ATTACH_TID_COMM)) {
-		kdbus_meta_proc_collect_tid_comm(mp);
-		mp->collected |= KDBUS_ATTACH_TID_COMM;
-	}
-
-	if ((what & KDBUS_ATTACH_PID_COMM) &&
-	    !(mp->collected & KDBUS_ATTACH_PID_COMM)) {
-		kdbus_meta_proc_collect_pid_comm(mp);
-		mp->collected |= KDBUS_ATTACH_PID_COMM;
-	}
-
-	if ((what & KDBUS_ATTACH_EXE) &&
-	    !(mp->collected & KDBUS_ATTACH_EXE)) {
-		kdbus_meta_proc_collect_exe(mp);
-		mp->collected |= KDBUS_ATTACH_EXE;
-	}
-
-	if ((what & KDBUS_ATTACH_CMDLINE) &&
-	    !(mp->collected & KDBUS_ATTACH_CMDLINE)) {
-		ret = kdbus_meta_proc_collect_cmdline(mp);
-		if (ret < 0)
-			goto exit_unlock;
-		mp->collected |= KDBUS_ATTACH_CMDLINE;
 	}
 
 	if ((what & KDBUS_ATTACH_CGROUP) &&
@@ -819,8 +710,6 @@ int kdbus_meta_export_prepare(struct kdbus_meta_proc *mp,
 			      struct kdbus_meta_conn *mc,
 			      u64 *mask, size_t *sz)
 {
-	char *exe_pathname = NULL;
-	void *exe_page = NULL;
 	size_t size = 0;
 	u64 valid = 0;
 	int ret = 0;
@@ -853,32 +742,6 @@ int kdbus_meta_export_prepare(struct kdbus_meta_proc *mp,
 
 	if (mp && (*mask & KDBUS_ATTACH_AUXGROUPS))
 		size += KDBUS_ITEM_SIZE(mp->n_auxgrps * sizeof(u64));
-
-	if (mp && (*mask & KDBUS_ATTACH_TID_COMM))
-		size += KDBUS_ITEM_SIZE(strlen(mp->tid_comm) + 1);
-
-	if (mp && (*mask & KDBUS_ATTACH_PID_COMM))
-		size += KDBUS_ITEM_SIZE(strlen(mp->pid_comm) + 1);
-
-	if (mp && (*mask & KDBUS_ATTACH_EXE)) {
-		exe_page = (void *)__get_free_page(GFP_TEMPORARY);
-		if (!exe_page) {
-			ret = -ENOMEM;
-			goto exit;
-		}
-
-		exe_pathname = d_path(&mp->exe_path, exe_page, PAGE_SIZE);
-		if (IS_ERR(exe_pathname)) {
-			ret = PTR_ERR(exe_pathname);
-			goto exit;
-		}
-
-		size += KDBUS_ITEM_SIZE(strlen(exe_pathname) + 1);
-		free_page((unsigned long)exe_page);
-	}
-
-	if (mp && (*mask & KDBUS_ATTACH_CMDLINE))
-		size += KDBUS_ITEM_SIZE(strlen(mp->cmdline) + 1);
 
 	if (mp && (*mask & KDBUS_ATTACH_CGROUP))
 		size += KDBUS_ITEM_SIZE(strlen(mp->cgroup) + 1);
@@ -967,10 +830,8 @@ int kdbus_meta_export(struct kdbus_meta_proc *mp,
 {
 	struct user_namespace *user_ns = current_user_ns();
 	struct kdbus_item_header item_hdr[13], *hdr;
-	char *exe_pathname = NULL;
 	struct kdbus_creds creds;
 	struct kdbus_pids pids;
-	void *exe_page = NULL;
 	struct kvec kvec[40];
 	u64 *auxgrps = NULL;
 	size_t cnt = 0;
@@ -1035,58 +896,6 @@ int kdbus_meta_export(struct kdbus_meta_proc *mp,
 					    auxgrps, payload_size, &size);
 	}
 
-	if (mp && (mask & KDBUS_ATTACH_TID_COMM))
-		cnt += kdbus_meta_push_kvec(kvec + cnt, hdr++,
-					    KDBUS_ITEM_TID_COMM, mp->tid_comm,
-					    strlen(mp->tid_comm) + 1, &size);
-
-	if (mp && (mask & KDBUS_ATTACH_PID_COMM))
-		cnt += kdbus_meta_push_kvec(kvec + cnt, hdr++,
-					    KDBUS_ITEM_PID_COMM, mp->pid_comm,
-					    strlen(mp->pid_comm) + 1, &size);
-
-	if (mp && (mask & KDBUS_ATTACH_EXE)) {
-		struct path p;
-
-		/*
-		 * TODO: We need access to __d_path() so we can write the path
-		 * relative to conn->root_path. Once upstream, we need
-		 * EXPORT_SYMBOL(__d_path) or an equivalent of d_path() that
-		 * takes the root path directly. Until then, we drop this item
-		 * if the root-paths differ.
-		 */
-
-		get_fs_root(current->fs, &p);
-		if (path_equal(&p, &mp->root_path)) {
-			exe_page = (void *)__get_free_page(GFP_TEMPORARY);
-			if (!exe_page) {
-				path_put(&p);
-				ret = -ENOMEM;
-				goto exit;
-			}
-
-			exe_pathname = d_path(&mp->exe_path, exe_page,
-					      PAGE_SIZE);
-			if (IS_ERR(exe_pathname)) {
-				path_put(&p);
-				ret = PTR_ERR(exe_pathname);
-				goto exit;
-			}
-
-			cnt += kdbus_meta_push_kvec(kvec + cnt, hdr++,
-						    KDBUS_ITEM_EXE,
-						    exe_pathname,
-						    strlen(exe_pathname) + 1,
-						    &size);
-		}
-		path_put(&p);
-	}
-
-	if (mp && (mask & KDBUS_ATTACH_CMDLINE))
-		cnt += kdbus_meta_push_kvec(kvec + cnt, hdr++,
-					    KDBUS_ITEM_CMDLINE, mp->cmdline,
-					    strlen(mp->cmdline) + 1, &size);
-
 	if (mp && (mask & KDBUS_ATTACH_CGROUP))
 		cnt += kdbus_meta_push_kvec(kvec + cnt, hdr++,
 					    KDBUS_ITEM_CGROUP, mp->cgroup,
@@ -1135,9 +944,6 @@ int kdbus_meta_export(struct kdbus_meta_proc *mp,
 
 exit:
 	kfree(auxgrps);
-
-	if (exe_page)
-		free_page((unsigned long)exe_page);
 
 	return ret;
 }

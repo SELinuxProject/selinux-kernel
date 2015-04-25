@@ -256,10 +256,6 @@ struct kdbus_policy_access {
  * @KDBUS_ATTACH_PIDS:			PIDs
  * @KDBUS_ATTACH_AUXGROUPS:		Auxiliary groups
  * @KDBUS_ATTACH_NAMES:			Well-known names
- * @KDBUS_ATTACH_TID_COMM:		The "comm" process identifier of the TID
- * @KDBUS_ATTACH_PID_COMM:		The "comm" process identifier of the PID
- * @KDBUS_ATTACH_EXE:			The path of the executable
- * @KDBUS_ATTACH_CMDLINE:		The process command line
  * @KDBUS_ATTACH_CGROUP:		The croup membership
  * @KDBUS_ATTACH_CAPS:			The process capabilities
  * @KDBUS_ATTACH_SECLABEL:		The security label
@@ -275,16 +271,12 @@ enum kdbus_attach_flags {
 	KDBUS_ATTACH_PIDS		=  1ULL <<  2,
 	KDBUS_ATTACH_AUXGROUPS		=  1ULL <<  3,
 	KDBUS_ATTACH_NAMES		=  1ULL <<  4,
-	KDBUS_ATTACH_TID_COMM		=  1ULL <<  5,
-	KDBUS_ATTACH_PID_COMM		=  1ULL <<  6,
-	KDBUS_ATTACH_EXE		=  1ULL <<  7,
-	KDBUS_ATTACH_CMDLINE		=  1ULL <<  8,
-	KDBUS_ATTACH_CGROUP		=  1ULL <<  9,
-	KDBUS_ATTACH_CAPS		=  1ULL << 10,
-	KDBUS_ATTACH_SECLABEL		=  1ULL << 11,
-	KDBUS_ATTACH_AUDIT		=  1ULL << 12,
-	KDBUS_ATTACH_CONN_DESCRIPTION	=  1ULL << 13,
-	_KDBUS_ATTACH_ALL		=  (1ULL << 14) - 1,
+	KDBUS_ATTACH_CGROUP		=  1ULL <<  5,
+	KDBUS_ATTACH_CAPS		=  1ULL <<  6,
+	KDBUS_ATTACH_SECLABEL		=  1ULL <<  7,
+	KDBUS_ATTACH_AUDIT		=  1ULL <<  8,
+	KDBUS_ATTACH_CONN_DESCRIPTION	=  1ULL <<  9,
+	_KDBUS_ATTACH_ALL		=  (1ULL << 10) - 1,
 	_KDBUS_ATTACH_ANY		=  ~0ULL
 };
 
@@ -325,14 +317,6 @@ enum kdbus_attach_flags {
  * @KDBUS_ITEM_AUXGROUPS:		Auxiliary process groups
  * @KDBUS_ITEM_OWNED_NAME:		A name owned by the associated
  *					connection
- * @KDBUS_ITEM_TID_COMM:		Thread ID "comm" identifier
- *					(Don't trust this, see below.)
- * @KDBUS_ITEM_PID_COMM:		Process ID "comm" identifier
- *					(Don't trust this, see below.)
- * @KDBUS_ITEM_EXE:			The path of the executable
- *					(Don't trust this, see below.)
- * @KDBUS_ITEM_CMDLINE:			The process command line
- *					(Don't trust this, see below.)
  * @KDBUS_ITEM_CGROUP:			The croup membership
  * @KDBUS_ITEM_CAPS:			The process capabilities
  * @KDBUS_ITEM_SECLABEL:		The security label
@@ -349,12 +333,6 @@ enum kdbus_attach_flags {
  * @KDBUS_ITEM_ID_REMOVE:		Notification in kdbus_notify_id_change
  * @KDBUS_ITEM_REPLY_TIMEOUT:		Timeout has been reached
  * @KDBUS_ITEM_REPLY_DEAD:		Destination died
- *
- * N.B: The process and thread COMM fields, as well as the CMDLINE and
- * EXE fields may be altered by unprivileged processes und should
- * hence *not* used for security decisions. Peers should make use of
- * these items only for informational purposes, such as generating log
- * records.
  */
 enum kdbus_item_type {
 	_KDBUS_ITEM_NULL,
@@ -382,10 +360,6 @@ enum kdbus_item_type {
 	KDBUS_ITEM_PIDS,
 	KDBUS_ITEM_AUXGROUPS,
 	KDBUS_ITEM_OWNED_NAME,
-	KDBUS_ITEM_TID_COMM,
-	KDBUS_ITEM_PID_COMM,
-	KDBUS_ITEM_EXE,
-	KDBUS_ITEM_CMDLINE,
 	KDBUS_ITEM_CGROUP,
 	KDBUS_ITEM_CAPS,
 	KDBUS_ITEM_SECLABEL,

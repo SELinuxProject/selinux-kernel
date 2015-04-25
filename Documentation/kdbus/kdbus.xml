@@ -564,38 +564,6 @@
         </varlistentry>
 
         <varlistentry>
-          <term><constant>KDBUS_ATTACH_TID_COMM</constant></term>
-            <listitem><para>
-              Requests the attachment of an item of type
-              <constant>KDBUS_ITEM_TID_COMM</constant>.
-            </para></listitem>
-        </varlistentry>
-
-        <varlistentry>
-          <term><constant>KDBUS_ATTACH_PID_COMM</constant></term>
-            <listitem><para>
-              Requests the attachment of an item of type
-              <constant>KDBUS_ITEM_PID_COMM</constant>.
-            </para></listitem>
-        </varlistentry>
-
-        <varlistentry>
-          <term><constant>KDBUS_ATTACH_EXE</constant></term>
-            <listitem><para>
-              Requests the attachment of an item of type
-              <constant>KDBUS_ITEM_EXE</constant>.
-            </para></listitem>
-        </varlistentry>
-
-        <varlistentry>
-          <term><constant>KDBUS_ATTACH_CMDLINE</constant></term>
-            <listitem><para>
-              Requests the attachment of an item of type
-              <constant>KDBUS_ITEM_CMDLINE</constant>.
-            </para></listitem>
-        </varlistentry>
-
-        <varlistentry>
           <term><constant>KDBUS_ATTACH_CGROUP</constant></term>
             <listitem><para>
               Requests the attachment of an item of type

@@ -174,10 +174,6 @@ int kdbus_item_validate(const struct kdbus_item *item)
 
 	case KDBUS_ITEM_NAME:
 	case KDBUS_ITEM_DST_NAME:
-	case KDBUS_ITEM_PID_COMM:
-	case KDBUS_ITEM_TID_COMM:
-	case KDBUS_ITEM_EXE:
-	case KDBUS_ITEM_CMDLINE:
 	case KDBUS_ITEM_CGROUP:
 	case KDBUS_ITEM_SECLABEL:
 		if (!kdbus_str_valid(item->str, payload_size))

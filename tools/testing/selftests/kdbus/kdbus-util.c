@@ -802,9 +802,6 @@ int kdbus_msg_dump(const struct kdbus_conn *conn, const struct kdbus_msg *msg)
 		}
 
 		case KDBUS_ITEM_NAME:
-		case KDBUS_ITEM_PID_COMM:
-		case KDBUS_ITEM_TID_COMM:
-		case KDBUS_ITEM_EXE:
 		case KDBUS_ITEM_CGROUP:
 		case KDBUS_ITEM_SECLABEL:
 		case KDBUS_ITEM_DST_NAME:
@@ -819,25 +816,6 @@ int kdbus_msg_dump(const struct kdbus_conn *conn, const struct kdbus_msg *msg)
 				     enum_MSG(item->type), item->size,
 				     item->name.name, strlen(item->name.name),
 				     item->name.flags);
-			break;
-		}
-
-		case KDBUS_ITEM_CMDLINE: {
-			size_t size = item->size - KDBUS_ITEM_HEADER_SIZE;
-			const char *str = item->str;
-			int count = 0;
-
-			kdbus_printf("  +%s (%llu bytes) ",
-				     enum_MSG(item->type), item->size);
-			while (size) {
-				kdbus_printf("'%s' ", str);
-				size -= strlen(str) + 1;
-				str += strlen(str) + 1;
-				count++;
-			}
-
-			kdbus_printf("(%d string%s)\n",
-				     count, (count == 1) ? "" : "s");
 			break;
 		}
 

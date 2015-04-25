@@ -141,8 +141,8 @@ int kdbus_test_monitor(struct kdbus_test_env *env)
 	ret = kdbus_item_in_message(msg, KDBUS_ITEM_CREDS);
 	ASSERT_RETURN(ret == 1);
 
-	/* the KDBUS_ITEM_PID_COMM was not requested */
-	ret = kdbus_item_in_message(msg, KDBUS_ITEM_PID_COMM);
+	/* KDBUS_ITEM_PIDS was not requested */
+	ret = kdbus_item_in_message(msg, KDBUS_ITEM_PIDS);
 	ASSERT_RETURN(ret == 0);
 
 	kdbus_msg_free(msg);
