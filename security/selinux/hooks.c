@@ -4946,7 +4946,7 @@ static int selinux_tun_dev_alloc_security(void **security)
 
 static void selinux_tun_dev_free_security(void *security)
 {
-	kfree(security);
+	kzfree(security);
 }
 
 static int selinux_tun_dev_create(void)
