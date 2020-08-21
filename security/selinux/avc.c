@@ -1234,7 +1234,7 @@ void avc_disable(void)
 	 * the cache and get that memory back.
 	 */
 	if (avc_node_cachep) {
-		avc_flush(selinux_state.avc);
+		avc_flush(current_selinux_state->avc);
 		/* kmem_cache_destroy(avc_node_cachep); */
 	}
 }
