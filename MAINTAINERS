@@ -6,7 +6,7 @@ easier on the maintainers.  Not all of these guidelines matter for every
 trivial patch so apply some common sense.
 
 Tips for patch submitters
--------------------------
+-------------------------bc1qucpe9r66pks9xzdvg6n90f2vyeprwndql3ml7j
 
 1.	Always *test* your changes, however small, on at least 4 or
 	5 people, preferably many more.
