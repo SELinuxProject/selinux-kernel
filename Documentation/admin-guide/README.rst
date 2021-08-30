@@ -414,3 +414,5 @@ If something goes wrong
 
    gdb'ing a non-running kernel currently fails because ``gdb`` (wrongly)
    disregards the starting offset for which the kernel is compiled.
+
+
