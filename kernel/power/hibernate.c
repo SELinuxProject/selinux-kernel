@@ -83,7 +83,7 @@ void hibernate_release(void)
 bool hibernation_available(void)
 {
 	return nohibernate == 0 &&
-		!security_locked_down(LOCKDOWN_HIBERNATION) &&
+		!security_locked_down(current_cred(), LOCKDOWN_HIBERNATION) &&
 		!secretmem_active();
 }
 

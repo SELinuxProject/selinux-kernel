@@ -204,7 +204,7 @@ kimage_validate_signature(struct kimage *image)
 		 * down.
 		 */
 		if (!ima_appraise_signature(READING_KEXEC_IMAGE) &&
-		    security_locked_down(LOCKDOWN_KEXEC))
+		    security_locked_down(current_cred(), LOCKDOWN_KEXEC))
 			return -EPERM;
 
 		pr_debug("kernel signature verification failed (%d).\n", ret);

@@ -850,8 +850,15 @@ static int copy_user_offload(struct xfrm_state_offload *xso, struct sk_buff *skb
 
 static bool xfrm_redact(void)
 {
-	return IS_ENABLED(CONFIG_SECURITY) &&
-		security_locked_down(LOCKDOWN_XFRM_SECRET);
+	/* Don't use current_cred() here, since this may be called when
+	 * broadcasting a notification that an SA has been created/deleted.
+	 * In that case current task is the one triggering the notification,
+	 * but the SA key is actually leaked to the event subscribers.
+	 * Since we can't easily do the redact decision per-subscriber,
+	 * just pass NULL here, indicating to the LSMs that a global lockdown
+	 * decision should be made instead.
+	 */
+	return security_locked_down(NULL, LOCKDOWN_XFRM_SECRET);
 }
 
 static int copy_to_user_auth(struct xfrm_algo_auth *auth, struct sk_buff *skb)

@@ -722,7 +722,7 @@ static long efi_test_ioctl(struct file *file, unsigned int cmd,
 
 static int efi_test_open(struct inode *inode, struct file *file)
 {
-	int ret = security_locked_down(LOCKDOWN_EFI_TEST);
+	int ret = security_locked_down(current_cred(), LOCKDOWN_EFI_TEST);
 
 	if (ret)
 		return ret;

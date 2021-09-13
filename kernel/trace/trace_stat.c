@@ -236,7 +236,7 @@ static int tracing_stat_open(struct inode *inode, struct file *file)
 	struct seq_file *m;
 	struct stat_session *session = inode->i_private;
 
-	ret = security_locked_down(LOCKDOWN_TRACEFS);
+	ret = security_locked_down(current_cred(), LOCKDOWN_TRACEFS);
 	if (ret)
 		return ret;
 

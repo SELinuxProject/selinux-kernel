@@ -617,7 +617,7 @@ static int open_port(struct inode *inode, struct file *filp)
 	if (!capable(CAP_SYS_RAWIO))
 		return -EPERM;
 
-	rc = security_locked_down(LOCKDOWN_DEV_MEM);
+	rc = security_locked_down(current_cred(), LOCKDOWN_DEV_MEM);
 	if (rc)
 		return rc;
 

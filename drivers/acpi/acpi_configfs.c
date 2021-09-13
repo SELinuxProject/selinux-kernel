@@ -26,7 +26,7 @@ static ssize_t acpi_table_aml_write(struct config_item *cfg,
 {
 	const struct acpi_table_header *header = data;
 	struct acpi_table *table;
-	int ret = security_locked_down(LOCKDOWN_ACPI_TABLES);
+	int ret = security_locked_down(current_cred(), LOCKDOWN_ACPI_TABLES);
 
 	if (ret)
 		return ret;

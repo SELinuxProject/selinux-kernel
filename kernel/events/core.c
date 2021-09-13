@@ -12017,7 +12017,7 @@ SYSCALL_DEFINE5(perf_event_open,
 
 	/* REGS_INTR can leak data, lockdown must prevent this */
 	if (attr.sample_type & PERF_SAMPLE_REGS_INTR) {
-		err = security_locked_down(LOCKDOWN_PERF);
+		err = security_locked_down(current_cred(), LOCKDOWN_PERF);
 		if (err)
 			return err;
 	}

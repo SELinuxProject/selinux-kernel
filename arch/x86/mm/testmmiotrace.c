@@ -116,7 +116,7 @@ static void do_test_bulk_ioremapping(void)
 static int __init init(void)
 {
 	unsigned long size = (read_far) ? (8 << 20) : (16 << 10);
-	int ret = security_locked_down(LOCKDOWN_MMIOTRACE);
+	int ret = security_locked_down(current_cred(), LOCKDOWN_MMIOTRACE);
 
 	if (ret)
 		return ret;

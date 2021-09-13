@@ -200,7 +200,7 @@ static void generic_ops_unregister(void)
 static char efivar_ssdt[EFIVAR_SSDT_NAME_MAX] __initdata;
 static int __init efivar_ssdt_setup(char *str)
 {
-	int ret = security_locked_down(LOCKDOWN_ACPI_TABLES);
+	int ret = security_locked_down(current_cred(), LOCKDOWN_ACPI_TABLES);
 
 	if (ret)
 		return ret;

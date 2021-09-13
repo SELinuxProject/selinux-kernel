@@ -753,7 +753,7 @@ static ssize_t pci_write_config(struct file *filp, struct kobject *kobj,
 	u8 *data = (u8 *) buf;
 	int ret;
 
-	ret = security_locked_down(LOCKDOWN_PCI_ACCESS);
+	ret = security_locked_down(current_cred(), LOCKDOWN_PCI_ACCESS);
 	if (ret)
 		return ret;
 
@@ -1047,7 +1047,7 @@ static int pci_mmap_resource(struct kobject *kobj, struct bin_attribute *attr,
 	struct resource *res = &pdev->resource[bar];
 	int ret;
 
-	ret = security_locked_down(LOCKDOWN_PCI_ACCESS);
+	ret = security_locked_down(current_cred(), LOCKDOWN_PCI_ACCESS);
 	if (ret)
 		return ret;
 
@@ -1128,7 +1128,7 @@ static ssize_t pci_write_resource_io(struct file *filp, struct kobject *kobj,
 {
 	int ret;
 
-	ret = security_locked_down(LOCKDOWN_PCI_ACCESS);
+	ret = security_locked_down(current_cred(), LOCKDOWN_PCI_ACCESS);
 	if (ret)
 		return ret;
 

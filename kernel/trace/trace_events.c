@@ -2130,7 +2130,7 @@ ftrace_event_open(struct inode *inode, struct file *file,
 	struct seq_file *m;
 	int ret;
 
-	ret = security_locked_down(LOCKDOWN_TRACEFS);
+	ret = security_locked_down(current_cred(), LOCKDOWN_TRACEFS);
 	if (ret)
 		return ret;
 

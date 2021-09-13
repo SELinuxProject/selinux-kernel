@@ -577,7 +577,7 @@ void __init acpi_table_upgrade(void)
 	if (table_nr == 0)
 		return;
 
-	if (security_locked_down(LOCKDOWN_ACPI_TABLES)) {
+	if (security_locked_down(current_cred(), LOCKDOWN_ACPI_TABLES)) {
 		pr_notice("kernel is locked down, ignoring table override\n");
 		return;
 	}

@@ -1577,7 +1577,7 @@ static ssize_t pccard_store_cis(struct file *filp, struct kobject *kobj,
 	struct pcmcia_socket *s;
 	int error;
 
-	error = security_locked_down(LOCKDOWN_PCMCIA_CIS);
+	error = security_locked_down(current_cred(), LOCKDOWN_PCMCIA_CIS);
 	if (error)
 		return error;
 

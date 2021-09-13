@@ -781,7 +781,7 @@ static int probes_open(struct inode *inode, struct file *file)
 {
 	int ret;
 
-	ret = security_locked_down(LOCKDOWN_TRACEFS);
+	ret = security_locked_down(current_cred(), LOCKDOWN_TRACEFS);
 	if (ret)
 		return ret;
 
@@ -836,7 +836,7 @@ static int profile_open(struct inode *inode, struct file *file)
 {
 	int ret;
 
-	ret = security_locked_down(LOCKDOWN_TRACEFS);
+	ret = security_locked_down(current_cred(), LOCKDOWN_TRACEFS);
 	if (ret)
 		return ret;
 

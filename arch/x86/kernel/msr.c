@@ -116,7 +116,7 @@ static ssize_t msr_write(struct file *file, const char __user *buf,
 	int err = 0;
 	ssize_t bytes = 0;
 
-	err = security_locked_down(LOCKDOWN_MSR);
+	err = security_locked_down(current_cred(), LOCKDOWN_MSR);
 	if (err)
 		return err;
 
@@ -179,7 +179,7 @@ static long msr_ioctl(struct file *file, unsigned int ioc, unsigned long arg)
 			err = -EFAULT;
 			break;
 		}
-		err = security_locked_down(LOCKDOWN_MSR);
+		err = security_locked_down(current_cred(), LOCKDOWN_MSR);
 		if (err)
 			break;
 

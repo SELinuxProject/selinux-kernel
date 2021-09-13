@@ -208,7 +208,7 @@ static inline int kexec_load_check(unsigned long nr_segments,
 	 * kexec can be used to circumvent module loading restrictions, so
 	 * prevent loading in that case
 	 */
-	result = security_locked_down(LOCKDOWN_KEXEC);
+	result = security_locked_down(current_cred(), LOCKDOWN_KEXEC);
 	if (result)
 		return result;
 

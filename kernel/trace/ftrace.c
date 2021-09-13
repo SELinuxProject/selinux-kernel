@@ -3694,7 +3694,7 @@ ftrace_avail_open(struct inode *inode, struct file *file)
 	struct ftrace_iterator *iter;
 	int ret;
 
-	ret = security_locked_down(LOCKDOWN_TRACEFS);
+	ret = security_locked_down(current_cred(), LOCKDOWN_TRACEFS);
 	if (ret)
 		return ret;
 
@@ -5822,7 +5822,7 @@ __ftrace_graph_open(struct inode *inode, struct file *file,
 	int ret;
 	struct ftrace_hash *new_hash = NULL;
 
-	ret = security_locked_down(LOCKDOWN_TRACEFS);
+	ret = security_locked_down(current_cred(), LOCKDOWN_TRACEFS);
 	if (ret)
 		return ret;
 

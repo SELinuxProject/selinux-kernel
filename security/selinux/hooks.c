@@ -7013,10 +7013,10 @@ static void selinux_bpf_prog_free(struct bpf_prog_aux *aux)
 }
 #endif
 
-static int selinux_lockdown(enum lockdown_reason what)
+static int selinux_lockdown(const struct cred *cred, enum lockdown_reason what)
 {
 	struct common_audit_data ad;
-	u32 sid = current_sid();
+	u32 sid;
 	int invalid_reason = (what <= LOCKDOWN_NONE) ||
 			     (what == LOCKDOWN_INTEGRITY_MAX) ||
 			     (what >= LOCKDOWN_CONFIDENTIALITY_MAX);
@@ -7027,6 +7027,9 @@ static int selinux_lockdown(enum lockdown_reason what)
 			  "lockdown_reason=invalid");
 		return -EINVAL;
 	}
+
+	/* Use SECINITSID_KERNEL if there is no relevant cred to check against */
+	sid = cred ? cred_sid(cred) : SECINITSID_KERNEL;
 
 	ad.type = LSM_AUDIT_DATA_LOCKDOWN;
 	ad.u.reason = what;

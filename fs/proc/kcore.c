@@ -586,7 +586,7 @@ out:
 
 static int open_kcore(struct inode *inode, struct file *filp)
 {
-	int ret = security_locked_down(LOCKDOWN_KCORE);
+	int ret = security_locked_down(current_cred(), LOCKDOWN_KCORE);
 
 	if (!capable(CAP_SYS_RAWIO))
 		return -EPERM;

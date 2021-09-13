@@ -154,7 +154,7 @@ static int debugfs_locked_down(struct inode *inode,
 	    !real_fops->mmap)
 		return 0;
 
-	if (security_locked_down(LOCKDOWN_DEBUGFS))
+	if (security_locked_down(current_cred(), LOCKDOWN_DEBUGFS))
 		return -EPERM;
 
 	return 0;

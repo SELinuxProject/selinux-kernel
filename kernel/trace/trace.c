@@ -486,7 +486,7 @@ int tracing_check_open_get_tr(struct trace_array *tr)
 {
 	int ret;
 
-	ret = security_locked_down(LOCKDOWN_TRACEFS);
+	ret = security_locked_down(current_cred(), LOCKDOWN_TRACEFS);
 	if (ret)
 		return ret;
 
@@ -2071,7 +2071,7 @@ int __init register_tracer(struct tracer *type)
 		return -1;
 	}
 
-	if (security_locked_down(LOCKDOWN_TRACEFS)) {
+	if (security_locked_down(current_cred(), LOCKDOWN_TRACEFS)) {
 		pr_warn("Can not register tracer %s due to lockdown\n",
 			   type->name);
 		return -EPERM;
@@ -9527,7 +9527,7 @@ int tracing_init_dentry(void)
 {
 	struct trace_array *tr = &global_trace;
 
-	if (security_locked_down(LOCKDOWN_TRACEFS)) {
+	if (security_locked_down(current_cred(), LOCKDOWN_TRACEFS)) {
 		pr_warn("Tracing disabled due to lockdown\n");
 		return -EPERM;
 	}
@@ -9989,7 +9989,7 @@ __init static int tracer_alloc_buffers(void)
 	int ret = -ENOMEM;
 
 
-	if (security_locked_down(LOCKDOWN_TRACEFS)) {
+	if (security_locked_down(current_cred(), LOCKDOWN_TRACEFS)) {
 		pr_warn("Tracing disabled due to lockdown\n");
 		return -EPERM;
 	}
@@ -10155,7 +10155,7 @@ __init static void tracing_set_default_clock(void)
 {
 	/* sched_clock_stable() is determined in late_initcall */
 	if (!trace_boot_clock && !sched_clock_stable()) {
-		if (security_locked_down(LOCKDOWN_TRACEFS)) {
+		if (security_locked_down(current_cred(), LOCKDOWN_TRACEFS)) {
 			pr_warn("Can not set tracing clock due to lockdown\n");
 			return;
 		}

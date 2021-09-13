@@ -93,7 +93,7 @@ SYSCALL_DEFINE5(pciconfig_write, unsigned long, bus, unsigned long, dfn,
 	int err = 0;
 
 	if (!capable(CAP_SYS_ADMIN) ||
-	    security_locked_down(LOCKDOWN_PCI_ACCESS))
+	    security_locked_down(current_cred(), LOCKDOWN_PCI_ACCESS))
 		return -EPERM;
 
 	dev = pci_get_domain_bus_and_slot(0, bus, dfn);

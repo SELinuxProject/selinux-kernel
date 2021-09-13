@@ -1543,6 +1543,7 @@
  *     Determine whether a kernel feature that potentially enables arbitrary
  *     code execution in kernel space should be permitted.
  *
+ *     @cred: credential asociated with the operation, or NULL if not applicable
  *     @what: kernel feature being accessed
  *
  * Security hooks for perf events

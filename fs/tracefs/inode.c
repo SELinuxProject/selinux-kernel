@@ -396,7 +396,7 @@ struct dentry *tracefs_create_file(const char *name, umode_t mode,
 	struct dentry *dentry;
 	struct inode *inode;
 
-	if (security_locked_down(LOCKDOWN_TRACEFS))
+	if (security_locked_down(NULL, LOCKDOWN_TRACEFS))
 		return NULL;
 
 	if (!(mode & S_IFMT))

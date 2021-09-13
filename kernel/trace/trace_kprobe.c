@@ -479,7 +479,7 @@ static int __register_trace_kprobe(struct trace_kprobe *tk)
 {
 	int i, ret;
 
-	ret = security_locked_down(LOCKDOWN_KPROBES);
+	ret = security_locked_down(current_cred(), LOCKDOWN_KPROBES);
 	if (ret)
 		return ret;
 
@@ -1141,7 +1141,7 @@ static int probes_open(struct inode *inode, struct file *file)
 {
 	int ret;
 
-	ret = security_locked_down(LOCKDOWN_TRACEFS);
+	ret = security_locked_down(current_cred(), LOCKDOWN_TRACEFS);
 	if (ret)
 		return ret;
 
@@ -1199,7 +1199,7 @@ static int profile_open(struct inode *inode, struct file *file)
 {
 	int ret;
 
-	ret = security_locked_down(LOCKDOWN_TRACEFS);
+	ret = security_locked_down(current_cred(), LOCKDOWN_TRACEFS);
 	if (ret)
 		return ret;
 

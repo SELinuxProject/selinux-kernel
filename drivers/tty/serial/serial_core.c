@@ -840,7 +840,7 @@ static int uart_set_info(struct tty_struct *tty, struct tty_port *port,
 	}
 
 	if (change_irq || change_port) {
-		retval = security_locked_down(LOCKDOWN_TIOCSSERIAL);
+		retval = security_locked_down(current_cred(), LOCKDOWN_TIOCSSERIAL);
 		if (retval)
 			goto exit;
 	}

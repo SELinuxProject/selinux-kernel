@@ -119,7 +119,7 @@ static ssize_t proc_bus_pci_write(struct file *file, const char __user *buf,
 	int size = dev->cfg_size;
 	int cnt, ret;
 
-	ret = security_locked_down(LOCKDOWN_PCI_ACCESS);
+	ret = security_locked_down(current_cred(), LOCKDOWN_PCI_ACCESS);
 	if (ret)
 		return ret;
 
@@ -202,7 +202,7 @@ static long proc_bus_pci_ioctl(struct file *file, unsigned int cmd,
 #endif /* HAVE_PCI_MMAP */
 	int ret = 0;
 
-	ret = security_locked_down(LOCKDOWN_PCI_ACCESS);
+	ret = security_locked_down(current_cred(), LOCKDOWN_PCI_ACCESS);
 	if (ret)
 		return ret;
 
@@ -249,7 +249,7 @@ static int proc_bus_pci_mmap(struct file *file, struct vm_area_struct *vma)
 	int i, ret, write_combine = 0, res_bit = IORESOURCE_MEM;
 
 	if (!capable(CAP_SYS_RAWIO) ||
-	    security_locked_down(LOCKDOWN_PCI_ACCESS))
+	    security_locked_down(current_cred(), LOCKDOWN_PCI_ACCESS))
 		return -EPERM;
 
 	if (fpriv->mmap_state == pci_mmap_io) {

@@ -30,7 +30,7 @@ static ssize_t cm_write(struct file *file, const char __user *user_buf,
 	acpi_status status;
 	int ret;
 
-	ret = security_locked_down(LOCKDOWN_ACPI_TABLES);
+	ret = security_locked_down(current_cred(), LOCKDOWN_ACPI_TABLES);
 	if (ret)
 		return ret;
 
