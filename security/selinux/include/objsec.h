@@ -50,6 +50,8 @@ struct inode_security_struct {
 	u32 sid;		/* SID of this object */
 	u16 sclass;		/* security class of this object */
 	unsigned char initialized;	/* initialization flag */
+	u32 avdsid;		/* SID when avd was computed */
+	struct av_decision avd; /* access vector decisions */
 	spinlock_t lock;
 };
 

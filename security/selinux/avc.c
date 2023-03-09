@@ -357,6 +357,8 @@ static int avc_xperms_populate(struct avc_node *node,
 	struct avc_xperms_decision_node *dest_xpd;
 	struct avc_xperms_decision_node *src_xpd;
 
+	if (!src)
+		return 0;
 	if (src->xp.len == 0)
 		return 0;
 	dest = avc_xperms_alloc();
@@ -988,15 +990,17 @@ static noinline struct avc_node *avc_compute_av(u32 ssid, u32 tsid, u16 tclass,
 						struct av_decision *avd,
 						struct avc_xperms_node *xp_node)
 {
-	INIT_LIST_HEAD(&xp_node->xpd_head);
-	security_compute_av(ssid, tsid, tclass, avd, &xp_node->xp);
+	if (xp_node)
+		INIT_LIST_HEAD(&xp_node->xpd_head);
+	security_compute_av(ssid, tsid, tclass, avd,
+			xp_node ? &xp_node->xp : NULL);
 	return avc_insert(ssid, tsid, tclass, avd, xp_node);
 }
 
-static noinline int avc_denied(u32 ssid, u32 tsid,
-			       u16 tclass, u32 requested,
-			       u8 driver, u8 xperm, unsigned int flags,
-			       struct av_decision *avd)
+noinline int avc_denied(u32 ssid, u32 tsid,
+			u16 tclass, u32 requested,
+			u8 driver, u8 xperm, unsigned int flags,
+			struct av_decision *avd)
 {
 	if (flags & AVC_STRICT)
 		return -EACCES;
@@ -1120,6 +1124,35 @@ static noinline int avc_perm_nonode(u32 ssid, u32 tsid, u16 tclass,
 				  flags, avd);
 	return 0;
 }
+
+/**
+ * avc_get_avd - Get access vector decisions
+ * @ssid: source security identifier
+ * @tsid: target security identifier
+ * @tclass: target security class
+ * @avd: access vector decisions
+ *
+ * Get access vector decisions for the specified (@ssid, @tsid, @tclass)
+ * triple, fetching them from the access vector cache if present or
+ * calling the security server to compute them on a miss. Unlike
+ * avc_has_perm_noaudit(), this function does not check any
+ * requested permission; it just returns the entire decision vector.
+ */
+void avc_get_avd(u32 ssid, u32 tsid, u16 tclass, struct av_decision *avd)
+{
+	struct avc_node *node;
+
+	rcu_read_lock();
+	node = avc_lookup(ssid, tsid, tclass);
+	if (unlikely(!node)) {
+		rcu_read_unlock();
+		avc_compute_av(ssid, tsid, tclass, avd, NULL);
+		return;
+	}
+	memcpy(avd, &node->ae.avd, sizeof(*avd));
+	rcu_read_unlock();
+}
+
 
 /**
  * avc_has_perm_noaudit - Check permissions but perform no auditing.

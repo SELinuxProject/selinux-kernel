@@ -793,6 +793,9 @@ static int selinux_set_mnt_opts(struct super_block *sb,
 			goto out;
 
 		root_isec->sid = rootcontext_sid;
+		avc_get_avd(root_isec->task_sid, root_isec->sid,
+			root_isec->sclass, &root_isec->avd);
+		root_isec->avdsid = root_isec->sid;
 		root_isec->initialized = LABEL_INITIALIZED;
 	}
 
@@ -1517,8 +1520,10 @@ out:
 			isec->initialized = LABEL_INVALID;
 			goto out_unlock;
 		}
-		isec->initialized = LABEL_INITIALIZED;
 		isec->sid = sid;
+		avc_get_avd(task_sid, sid, sclass, &isec->avd);
+		isec->avdsid = sid;
+		isec->initialized = LABEL_INITIALIZED;
 	}
 
 out_unlock:
@@ -1611,7 +1616,9 @@ static int inode_has_perm(const struct cred *cred,
 			  struct common_audit_data *adp)
 {
 	struct inode_security_struct *isec;
-	u32 sid;
+	u32 sid, denied;
+	struct av_decision avd;
+	int rc, rc2;
 
 	validate_creds(cred);
 
@@ -1620,6 +1627,21 @@ static int inode_has_perm(const struct cred *cred,
 
 	sid = cred_sid(cred);
 	isec = selinux_inode(inode);
+
+	if (sid == isec->task_sid && isec->sid == isec->avdsid &&
+		isec->avd.seqno == avc_policy_seqno()) {
+		memcpy(&avd, &isec->avd, sizeof(avd));
+		denied = perms & ~avd.allowed;
+		if (unlikely(denied))
+			rc = avc_denied(sid, isec->sid, isec->sclass,
+					perms, 0, 0, 0,	&avd);
+		else
+			rc = 0;
+		rc2 = avc_audit(sid, isec->sid, isec->sclass, perms, &avd, rc, adp);
+		if (rc2)
+			return rc2;
+		return rc;
+	}
 
 	return avc_has_perm(sid, isec->sid, isec->sclass, perms, adp);
 }
@@ -2851,6 +2873,8 @@ static int selinux_inode_init_security(struct inode *inode, struct inode *dir,
 		struct inode_security_struct *isec = selinux_inode(inode);
 		isec->sclass = inode_mode_to_security_class(inode->i_mode);
 		isec->sid = newsid;
+		avc_get_avd(tsec->sid, newsid, isec->sclass, &isec->avd);
+		isec->avdsid = newsid;
 		isec->initialized = LABEL_INITIALIZED;
 	}
 
@@ -2912,20 +2936,20 @@ static int selinux_inode_init_security_anon(struct inode *inode,
 			return rc;
 	}
 
-	isec->initialized = LABEL_INITIALIZED;
 	/*
 	 * Now that we've initialized security, check whether we're
 	 * allowed to actually create this type of anonymous inode.
 	 */
+	rc = avc_has_perm_noaudit(tsec->sid, isec->sid, isec->sclass,
+				FILE__CREATE, 0, &isec->avd);
+
+	isec->initialized = LABEL_INITIALIZED;
 
 	ad.type = LSM_AUDIT_DATA_ANONINODE;
 	ad.u.anonclass = name ? (const char *)name->name : "?";
-
-	return avc_has_perm(tsec->sid,
-			    isec->sid,
-			    isec->sclass,
-			    FILE__CREATE,
-			    &ad);
+	avc_audit(tsec->sid, isec->sid, isec->sclass, FILE__CREATE, &isec->avd,
+		rc, &ad);
+	return rc;
 }
 
 static int selinux_inode_create(struct inode *dir, struct dentry *dentry, umode_t mode)
@@ -3041,8 +3065,19 @@ static int selinux_inode_permission(struct inode *inode, int mask)
 	if (IS_ERR(isec))
 		return PTR_ERR(isec);
 
-	rc = avc_has_perm_noaudit(sid, isec->sid, isec->sclass, perms, 0,
-				  &avd);
+	if (sid == isec->task_sid && isec->sid == isec->avdsid &&
+		isec->avd.seqno == avc_policy_seqno()) {
+		memcpy(&avd, &isec->avd, sizeof(avd));
+		denied = perms & ~avd.allowed;
+		if (unlikely(denied))
+			rc = avc_denied(sid, isec->sid, isec->sclass,
+					perms, 0, 0, 0,	&avd);
+		else
+			rc = 0;
+	} else {
+		rc = avc_has_perm_noaudit(sid, isec->sid, isec->sclass, perms,
+					0, &avd);
+	}
 	audited = avc_audit_required(perms, &avd, rc,
 				     from_access ? FILE__AUDIT_ACCESS : 0,
 				     &denied);
@@ -3247,6 +3282,8 @@ static void selinux_inode_post_setxattr(struct dentry *dentry, const char *name,
 	spin_lock(&isec->lock);
 	isec->sclass = inode_mode_to_security_class(inode->i_mode);
 	isec->sid = newsid;
+	avc_get_avd(isec->task_sid, newsid, isec->sclass, &isec->avd);
+	isec->avdsid = newsid;
 	isec->initialized = LABEL_INITIALIZED;
 	spin_unlock(&isec->lock);
 }
@@ -3406,6 +3443,8 @@ static int selinux_inode_setsecurity(struct inode *inode, const char *name,
 	spin_lock(&isec->lock);
 	isec->sclass = inode_mode_to_security_class(inode->i_mode);
 	isec->sid = newsid;
+	avc_get_avd(isec->task_sid, newsid, isec->sclass, &isec->avd);
+	isec->avdsid = newsid;
 	isec->initialized = LABEL_INITIALIZED;
 	spin_unlock(&isec->lock);
 	return 0;
@@ -3874,6 +3913,18 @@ static int selinux_file_open(struct file *file)
 	 */
 	fsec->isid = isec->sid;
 	fsec->pseqno = avc_policy_seqno();
+
+	/*
+	 * Update inode task SID and avd to reflect opener for later
+	 * use in selinux_inode_permission and inode_has_perm.
+	 */
+	spin_lock(&isec->lock);
+	isec->task_sid = fsec->sid;
+	isec->avdsid = isec->sid;
+	avc_get_avd(isec->task_sid, isec->avdsid,
+		isec->sclass, &isec->avd);
+	spin_unlock(&isec->lock);
+
 	/*
 	 * Since the inode label or policy seqno may have changed
 	 * between the selinux_inode_permission check and the saving
@@ -4162,6 +4213,8 @@ static void selinux_task_to_inode(struct task_struct *p,
 	spin_lock(&isec->lock);
 	isec->sclass = inode_mode_to_security_class(inode->i_mode);
 	isec->sid = sid;
+	avc_get_avd(isec->task_sid, sid, isec->sclass, &isec->avd);
+	isec->avdsid = sid;
 	isec->initialized = LABEL_INITIALIZED;
 	spin_unlock(&isec->lock);
 }
@@ -4534,6 +4587,8 @@ static int selinux_socket_post_create(struct socket *sock, int family,
 
 	isec->sclass = sclass;
 	isec->sid = sid;
+	avc_get_avd(isec->task_sid, sid, sclass, &isec->avd);
+	isec->avdsid = sid;
 	isec->initialized = LABEL_INITIALIZED;
 
 	if (sock->sk) {
@@ -4827,6 +4882,8 @@ static int selinux_socket_accept(struct socket *sock, struct socket *newsock)
 	newisec = inode_security_novalidate(SOCK_INODE(newsock));
 	newisec->sclass = sclass;
 	newisec->sid = sid;
+	avc_get_avd(newisec->task_sid, sid, sclass, &newisec->avd);
+	newisec->avdsid = sid;
 	newisec->initialized = LABEL_INITIALIZED;
 
 	return 0;

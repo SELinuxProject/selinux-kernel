@@ -141,6 +141,13 @@ int avc_has_perm_noaudit(u32 ssid, u32 tsid,
 			 unsigned flags,
 			 struct av_decision *avd);
 
+void avc_get_avd(u32 ssid, u32 tsid, u16 tclass, struct av_decision *avd);
+
+int avc_denied(u32 ssid, u32 tsid,
+	u16 tclass, u32 requested,
+	u8 driver, u8 xperm, unsigned int flags,
+	struct av_decision *avd);
+
 int avc_has_perm(u32 ssid, u32 tsid,
 		 u16 tclass, u32 requested,
 		 struct common_audit_data *auditdata);

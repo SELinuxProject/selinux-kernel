@@ -1107,7 +1107,8 @@ void security_compute_av(u32 ssid,
 	rcu_read_lock();
 	policy = rcu_dereference(selinux_state.policy);
 	avd_init(policy, avd);
-	xperms->len = 0;
+	if (xperms)
+		xperms->len = 0;
 	if (!selinux_initialized())
 		goto allow;
 
