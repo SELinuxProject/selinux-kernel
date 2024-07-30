@@ -14,13 +14,16 @@
 #include "security.h"
 
 #ifdef CONFIG_IMA
-extern void selinux_ima_measure_state(void);
-extern void selinux_ima_measure_state_locked(void);
+extern void selinux_ima_measure_state(struct selinux_state *selinux_state);
+extern void
+selinux_ima_measure_state_locked(struct selinux_state *selinux_state);
 #else
-static inline void selinux_ima_measure_state(void)
+static inline void
+selinux_ima_measure_state(struct selinux_state *selinux_state)
 {
 }
-static inline void selinux_ima_measure_state_locked(void)
+static inline void
+selinux_ima_measure_state_locked(struct selinux_state *selinux_state)
 {
 }
 #endif

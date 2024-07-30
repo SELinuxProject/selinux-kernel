@@ -39,21 +39,21 @@
  * It returns a reference to selinux_status_page. If the status page is
  * not allocated yet, it also tries to allocate it at the first time.
  */
-struct page *selinux_kernel_status_page(void)
+struct page *selinux_kernel_status_page(struct selinux_state *state)
 {
 	struct selinux_kernel_status   *status;
 	struct page		       *result = NULL;
 
-	mutex_lock(&selinux_state.status_lock);
-	if (!selinux_state.status_page) {
-		selinux_state.status_page = alloc_page(GFP_KERNEL|__GFP_ZERO);
+	mutex_lock(&state->status_lock);
+	if (!state->status_page) {
+		state->status_page = alloc_page(GFP_KERNEL|__GFP_ZERO);
 
-		if (selinux_state.status_page) {
-			status = page_address(selinux_state.status_page);
+		if (state->status_page) {
+			status = page_address(state->status_page);
 
 			status->version = SELINUX_KERNEL_STATUS_VERSION;
 			status->sequence = 0;
-			status->enforcing = enforcing_enabled();
+			status->enforcing = enforcing_enabled(state);
 			/*
 			 * NOTE: the next policyload event shall set
 			 * a positive value on the status->policyload,
@@ -62,11 +62,11 @@ struct page *selinux_kernel_status_page(void)
 			 */
 			status->policyload = 0;
 			status->deny_unknown =
-				!security_get_allow_unknown();
+				!security_get_allow_unknown(state);
 		}
 	}
-	result = selinux_state.status_page;
-	mutex_unlock(&selinux_state.status_lock);
+	result = state->status_page;
+	mutex_unlock(&state->status_lock);
 
 	return result;
 }
@@ -76,13 +76,14 @@ struct page *selinux_kernel_status_page(void)
  *
  * It updates status of the current enforcing/permissive mode.
  */
-void selinux_status_update_setenforce(bool enforcing)
+void selinux_status_update_setenforce(struct selinux_state *state,
+				      bool enforcing)
 {
 	struct selinux_kernel_status   *status;
 
-	mutex_lock(&selinux_state.status_lock);
-	if (selinux_state.status_page) {
-		status = page_address(selinux_state.status_page);
+	mutex_lock(&state->status_lock);
+	if (state->status_page) {
+		status = page_address(state->status_page);
 
 		status->sequence++;
 		smp_wmb();
@@ -92,7 +93,7 @@ void selinux_status_update_setenforce(bool enforcing)
 		smp_wmb();
 		status->sequence++;
 	}
-	mutex_unlock(&selinux_state.status_lock);
+	mutex_unlock(&state->status_lock);
 }
 
 /*
@@ -101,22 +102,23 @@ void selinux_status_update_setenforce(bool enforcing)
  * It updates status of the times of policy reloaded, and current
  * setting of deny_unknown.
  */
-void selinux_status_update_policyload(u32 seqno)
+void selinux_status_update_policyload(struct selinux_state *state,
+				      u32 seqno)
 {
 	struct selinux_kernel_status   *status;
 
-	mutex_lock(&selinux_state.status_lock);
-	if (selinux_state.status_page) {
-		status = page_address(selinux_state.status_page);
+	mutex_lock(&state->status_lock);
+	if (state->status_page) {
+		status = page_address(state->status_page);
 
 		status->sequence++;
 		smp_wmb();
 
 		status->policyload = seqno;
-		status->deny_unknown = !security_get_allow_unknown();
+		status->deny_unknown = !security_get_allow_unknown(state);
 
 		smp_wmb();
 		status->sequence++;
 	}
-	mutex_unlock(&selinux_state.status_lock);
+	mutex_unlock(&state->status_lock);
 }
