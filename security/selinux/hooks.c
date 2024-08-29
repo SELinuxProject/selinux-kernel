@@ -105,6 +105,7 @@
 #include "netlabel.h"
 #include "audit.h"
 #include "avc_ss.h"
+#include "global_sidtab.h"
 
 #define SELINUX_INODE_INIT_XATTRS 1
 
@@ -7687,6 +7688,9 @@ static __init int selinux_init(void)
 	if (selinux_state_create(NULL, &init_selinux_state))
 		panic("SELinux: Could not create initial namespace\n");
 	enforcing_set(init_selinux_state, selinux_enforcing_boot);
+
+	if (global_sidtab_init())
+		panic("SELinux: Could not create global SID table\n");
 
 	/* Set the security state for the initial task. */
 	cred_init_security();
