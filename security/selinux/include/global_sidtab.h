@@ -9,11 +9,14 @@
 
 #include <linux/types.h>
 
+struct selinux_state;
+
 extern int global_sidtab_init(void);
 
 extern int global_sid_to_context(u32 sid, char **scontext, u32 *scontext_len);
 
-extern int global_context_to_sid(const char *scontext, u32 scontext_len,
+extern int global_context_to_sid(struct selinux_state *state, u32 ss_sid,
+				 const char *scontext, u32 scontext_len,
 				 u32 *out_sid, gfp_t gfp);
 
 #endif /* _GLOBAL_SIDTAB_H_ */

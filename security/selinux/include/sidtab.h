@@ -26,6 +26,8 @@ struct sidtab_entry {
 	struct sidtab_str_cache __rcu *cache;
 #endif
 	struct hlist_node list;
+	u32 ss_sid; // global SID table only
+	struct selinux_state *state; // global SID table only
 };
 
 union sidtab_entry_inner {
@@ -133,6 +135,9 @@ void sidtab_freeze_end(struct sidtab *s, unsigned long *flags)
 	__releases(&s->lock);
 
 int sidtab_context_to_sid(struct sidtab *s, struct context *context, u32 *sid);
+
+int sidtab_context_ss_to_sid(struct sidtab *s, struct context *context,
+			     struct selinux_state *state, u32 ss_sid, u32 *sid);
 
 void sidtab_destroy(struct sidtab *s);
 
