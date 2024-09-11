@@ -112,6 +112,8 @@ struct selinux_state {
 	struct work_struct work;
 } __randomize_layout;
 
+extern struct selinux_state *init_selinux_state;
+
 int selinux_state_create(struct selinux_state *parent,
 			 struct selinux_state **state);
 void __put_selinux_state(struct selinux_state *state);
