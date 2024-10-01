@@ -110,11 +110,12 @@ struct selinux_state {
 
 	refcount_t count;
 	struct work_struct work;
+	u32 creator_sid; /* SID of namespace creator */
 } __randomize_layout;
 
 extern struct selinux_state *init_selinux_state;
 
-int selinux_state_create(struct selinux_state *parent,
+int selinux_state_create(struct selinux_state *parent, u32 creator_sid,
 			 struct selinux_state **state);
 void __put_selinux_state(struct selinux_state *state);
 

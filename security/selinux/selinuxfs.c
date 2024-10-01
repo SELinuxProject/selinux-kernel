@@ -367,7 +367,8 @@ static ssize_t sel_write_unshare(struct file *file, const char __user *buf,
 			goto out;
 		}
 		tsec = selinux_cred(cred);
-		if (selinux_state_create(state, &tsec->state)) {
+		if (selinux_state_create(state, current_sid(),
+					 &tsec->state)) {
 			abort_creds(cred);
 			length = -ENOMEM;
 			goto out;
