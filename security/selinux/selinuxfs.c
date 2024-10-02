@@ -386,6 +386,8 @@ static ssize_t sel_write_unshare(struct file *file, const char __user *buf,
 		tsec->osid = tsec->sid = SECINITSID_KERNEL;
 		tsec->exec_sid = tsec->create_sid = tsec->keycreate_sid =
 			tsec->sockcreate_sid = SECSID_NULL;
+		if (tsec->parent_cred)
+			put_cred(tsec->parent_cred);
 		tsec->parent_cred = get_current_cred();
 		commit_creds(cred);
 	}
