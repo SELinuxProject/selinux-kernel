@@ -21,6 +21,15 @@ int global_sidtab_init(void)
 
 		if (!str)
 			continue;
+		/*
+		 * Before the policy is loaded, translate
+		 * SECINITSID_INIT to "kernel", because systemd and
+		 * libselinux < 2.6 take a getcon_raw() result that is
+		 * both non-null and not "kernel" to mean that a policy
+		 * is already loaded.
+		 */
+		if (sid == SECINITSID_INIT)
+			str = "kernel";
 		ctx.str = (char *)str;
 		ctx.len = strlen(str)+1;
 		rc = sidtab_set_initial(&global_sidtab, sid, &ctx);
