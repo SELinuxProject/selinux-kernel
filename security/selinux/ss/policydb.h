@@ -408,7 +408,50 @@ static inline bool val_is_boolean(u32 value)
 	return value == 0 || value == 1;
 }
 
-extern int str_read(char **strp, gfp_t flags, struct policy_file *fp, u32 len);
+#define STR_UNCONSTRAINT 0
+#define STR_IDENTIFIER 1
+extern int str_read(char **strp, gfp_t flags, struct policy_file *fp, u32 len,
+		    int kind, u32 max_len);
+
+static inline int str_read_bool(char **strp, gfp_t flags, struct policy_file *fp, u32 len)
+{
+	return str_read(strp, flags, fp, len, STR_IDENTIFIER, 128);
+}
+
+static inline int str_read_cat(char **strp, gfp_t flags, struct policy_file *fp, u32 len)
+{
+	return str_read(strp, flags, fp, len, STR_IDENTIFIER, 32);
+}
+
+static inline int str_read_class(char **strp, gfp_t flags, struct policy_file *fp, u32 len)
+{
+	return str_read(strp, flags, fp, len, STR_IDENTIFIER, 128);
+}
+
+static inline int str_read_perm(char **strp, gfp_t flags, struct policy_file *fp, u32 len)
+{
+	return str_read(strp, flags, fp, len, STR_IDENTIFIER, 128);
+}
+
+static inline int str_read_role(char **strp, gfp_t flags, struct policy_file *fp, u32 len)
+{
+	return str_read(strp, flags, fp, len, STR_IDENTIFIER, 128);
+}
+
+static inline int str_read_sens(char **strp, gfp_t flags, struct policy_file *fp, u32 len)
+{
+	return str_read(strp, flags, fp, len, STR_IDENTIFIER, 32);
+}
+
+static inline int str_read_type(char **strp, gfp_t flags, struct policy_file *fp, u32 len)
+{
+	return str_read(strp, flags, fp, len, STR_IDENTIFIER, 1024);
+}
+
+static inline int str_read_user(char **strp, gfp_t flags, struct policy_file *fp, u32 len)
+{
+	return str_read(strp, flags, fp, len, STR_IDENTIFIER, 128);
+}
 
 extern u16 string_to_security_class(struct policydb *p, const char *name);
 extern u32 string_to_av_perm(struct policydb *p, u16 tclass, const char *name);

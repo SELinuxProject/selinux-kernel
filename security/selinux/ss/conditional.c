@@ -280,7 +280,7 @@ int cond_read_bool(struct policydb *p, struct symtab *s, struct policy_file *fp)
 
 	len = le32_to_cpu(buf[2]);
 
-	rc = str_read(&key, GFP_KERNEL, fp, len);
+	rc = str_read_bool(&key, GFP_KERNEL, fp, len);
 	if (rc)
 		goto err;
 
