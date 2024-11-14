@@ -558,7 +558,8 @@ static int common_index(void *key, void *datum, void *datap)
 
 	comdatum = datum;
 	p = datap;
-	if (!comdatum->value || comdatum->value > p->p_commons.nprim)
+	if (!comdatum->value || comdatum->value > p->p_commons.nprim ||
+	    comdatum->value > IDENTIFIER_MAXVALUE)
 		return -EINVAL;
 
 	p->sym_val_to_name[SYM_COMMONS][comdatum->value - 1] = key;
@@ -573,7 +574,8 @@ static int class_index(void *key, void *datum, void *datap)
 
 	cladatum = datum;
 	p = datap;
-	if (!cladatum->value || cladatum->value > p->p_classes.nprim)
+	if (!cladatum->value || cladatum->value > p->p_classes.nprim ||
+	    cladatum->value > IDENTIFIER_MAXVALUE)
 		return -EINVAL;
 
 	p->sym_val_to_name[SYM_CLASSES][cladatum->value - 1] = key;
@@ -589,6 +591,7 @@ static int role_index(void *key, void *datum, void *datap)
 	role = datum;
 	p = datap;
 	if (!role->value || role->value > p->p_roles.nprim ||
+	    role->value > IDENTIFIER_MAXVALUE ||
 	    role->bounds > p->p_roles.nprim)
 		return -EINVAL;
 
@@ -607,6 +610,7 @@ static int type_index(void *key, void *datum, void *datap)
 
 	if (typdatum->primary) {
 		if (!typdatum->value || typdatum->value > p->p_types.nprim ||
+		    typdatum->value > IDENTIFIER_MAXVALUE ||
 		    typdatum->bounds > p->p_types.nprim)
 			return -EINVAL;
 		p->sym_val_to_name[SYM_TYPES][typdatum->value - 1] = key;
@@ -624,6 +628,7 @@ static int user_index(void *key, void *datum, void *datap)
 	usrdatum = datum;
 	p = datap;
 	if (!usrdatum->value || usrdatum->value > p->p_users.nprim ||
+	    usrdatum->value > IDENTIFIER_MAXVALUE ||
 	    usrdatum->bounds > p->p_users.nprim)
 		return -EINVAL;
 
@@ -640,7 +645,8 @@ static int sens_index(void *key, void *datum, void *datap)
 	levdatum = datum;
 	p = datap;
 
-	if (!levdatum->level.sens || levdatum->level.sens > p->p_levels.nprim)
+	if (!levdatum->level.sens || levdatum->level.sens > p->p_levels.nprim ||
+	    levdatum->level.sens > IDENTIFIER_MAXVALUE)
 		return -EINVAL;
 
 	if (!levdatum->isalias)
@@ -657,7 +663,8 @@ static int cat_index(void *key, void *datum, void *datap)
 	catdatum = datum;
 	p = datap;
 
-	if (!catdatum->value || catdatum->value > p->p_cats.nprim)
+	if (!catdatum->value || catdatum->value > p->p_cats.nprim ||
+	    catdatum->value > IDENTIFIER_MAXVALUE)
 		return -EINVAL;
 
 	if (!catdatum->isalias)
@@ -1233,8 +1240,9 @@ out:
  * binary representation file.
  */
 
-int str_read(char **strp, gfp_t flags, struct policy_file *fp, u32 len)
+int str_read(char **strp, gfp_t flags, struct policy_file *fp, u32 len, int kind, u32 max_len)
 {
+	u32 i;
 	int rc;
 	char *str;
 
@@ -1244,19 +1252,35 @@ int str_read(char **strp, gfp_t flags, struct policy_file *fp, u32 len)
 	if (size_check(sizeof(char), len, fp))
 		return -EINVAL;
 
+	if (len > max_len)
+		return -EINVAL;
+
 	str = kmalloc(len + 1, flags | __GFP_NOWARN);
 	if (!str)
 		return -ENOMEM;
 
 	rc = next_entry(str, fp, len);
-	if (rc) {
-		kfree(str);
-		return rc;
+	if (rc)
+		goto bad_str;
+
+	rc = -EINVAL;
+	for (i = 0; i < len; i++) {
+		if (iscntrl(str[i]))
+			goto bad_str;
+
+		if (kind == STR_IDENTIFIER &&
+		    !(isalnum(str[i]) || str[i] == '_' || str[i] == '-' || str[i] == '.'))
+			goto bad_str;
+
 	}
 
 	str[len] = '\0';
 	*strp = str;
 	return 0;
+
+bad_str:
+	kfree(str);
+	return rc;
 }
 
 static int perm_read(struct policydb *p, struct symtab *s, struct policy_file *fp)
@@ -1281,7 +1305,7 @@ static int perm_read(struct policydb *p, struct symtab *s, struct policy_file *f
 	if (perdatum->value < 1 || perdatum->value > SEL_VEC_MAX)
 		goto bad;
 
-	rc = str_read(&key, GFP_KERNEL, fp, len);
+	rc = str_read_perm(&key, GFP_KERNEL, fp, len);
 	if (rc)
 		goto bad;
 
@@ -1328,7 +1352,7 @@ static int common_read(struct policydb *p, struct symtab *s, struct policy_file 
 		goto bad;
 	comdatum->permissions.nprim = le32_to_cpu(buf[2]);
 
-	rc = str_read(&key, GFP_KERNEL, fp, len);
+	rc = str_read_class(&key, GFP_KERNEL, fp, len);
 	if (rc)
 		goto bad;
 
@@ -1566,12 +1590,12 @@ static int class_read(struct policydb *p, struct symtab *s, struct policy_file *
 
 	ncons = le32_to_cpu(buf[5]);
 
-	rc = str_read(&key, GFP_KERNEL, fp, len);
+	rc = str_read_class(&key, GFP_KERNEL, fp, len);
 	if (rc)
 		goto bad;
 
 	if (len2) {
-		rc = str_read(&cladatum->comkey, GFP_KERNEL, fp, len2);
+		rc = str_read_class(&cladatum->comkey, GFP_KERNEL, fp, len2);
 		if (rc)
 			goto bad;
 
@@ -1705,7 +1729,7 @@ static int role_read(struct policydb *p, struct symtab *s, struct policy_file *f
 	if (p->policyvers >= POLICYDB_VERSION_BOUNDARY)
 		role->bounds = le32_to_cpu(buf[2]);
 
-	rc = str_read(&key, GFP_KERNEL, fp, len);
+	rc = str_read_role(&key, GFP_KERNEL, fp, len);
 	if (rc)
 		goto bad;
 
@@ -1772,7 +1796,7 @@ static int type_read(struct policydb *p, struct symtab *s, struct policy_file *f
 		typdatum->primary = le32_to_cpu(buf[2]);
 	}
 
-	rc = str_read(&key, GFP_KERNEL, fp, len);
+	rc = str_read_type(&key, GFP_KERNEL, fp, len);
 	if (rc)
 		goto bad;
 
@@ -1836,7 +1860,7 @@ static int user_read(struct policydb *p, struct symtab *s, struct policy_file *f
 	if (p->policyvers >= POLICYDB_VERSION_BOUNDARY)
 		usrdatum->bounds = le32_to_cpu(buf[2]);
 
-	rc = str_read(&key, GFP_KERNEL, fp, len);
+	rc = str_read_user(&key, GFP_KERNEL, fp, len);
 	if (rc)
 		goto bad;
 
@@ -1885,7 +1909,7 @@ static int sens_read(struct policydb *p, struct symtab *s, struct policy_file *f
 		goto bad;
 	levdatum->isalias = val;
 
-	rc = str_read(&key, GFP_KERNEL, fp, len);
+	rc = str_read_sens(&key, GFP_KERNEL, fp, len);
 	if (rc)
 		goto bad;
 
@@ -1928,7 +1952,7 @@ static int cat_read(struct policydb *p, struct symtab *s, struct policy_file *fp
 		goto bad;
 	catdatum->isalias = val;
 
-	rc = str_read(&key, GFP_KERNEL, fp, len);
+	rc = str_read_cat(&key, GFP_KERNEL, fp, len);
 	if (rc)
 		goto bad;
 
@@ -2237,7 +2261,7 @@ static int filename_trans_read_helper_compat(struct policydb *p, struct policy_f
 	len = le32_to_cpu(buf[0]);
 
 	/* path component string */
-	rc = str_read(&name, GFP_KERNEL, fp, len);
+	rc = str_read(&name, GFP_KERNEL, fp, len, STR_UNCONSTRAINT, FILETRANSKEY_NAME_MAXLENGTH);
 	if (rc)
 		return rc;
 
@@ -2336,7 +2360,7 @@ static int filename_trans_read_helper(struct policydb *p, struct policy_file *fp
 	len = le32_to_cpu(buf[0]);
 
 	/* path component string */
-	rc = str_read(&name, GFP_KERNEL, fp, len);
+	rc = str_read(&name, GFP_KERNEL, fp, len, STR_UNCONSTRAINT, FILETRANSKEY_NAME_MAXLENGTH);
 	if (rc)
 		return rc;
 
@@ -2490,7 +2514,7 @@ static int genfs_read(struct policydb *p, struct policy_file *fp)
 		if (!newgenfs)
 			goto out;
 
-		rc = str_read(&newgenfs->fstype, GFP_KERNEL, fp, len);
+		rc = str_read_fsname(&newgenfs->fstype, GFP_KERNEL, fp, len);
 		if (rc)
 			goto out;
 
@@ -2529,7 +2553,8 @@ static int genfs_read(struct policydb *p, struct policy_file *fp)
 			if (!newc)
 				goto out;
 
-			rc = str_read(&newc->u.name, GFP_KERNEL, fp, len);
+			rc = str_read(&newc->u.name, GFP_KERNEL, fp, len,
+				      STR_UNCONSTRAINT, GENFS_PATH_MAXLENGTH);
 			if (rc)
 				goto out;
 
@@ -2632,7 +2657,7 @@ static int ocontext_read(struct policydb *p,
 					goto out;
 				len = le32_to_cpu(buf[0]);
 
-				rc = str_read(&c->u.name, GFP_KERNEL, fp, len);
+				rc = str_read_fsname(&c->u.name, GFP_KERNEL, fp, len);
 				if (rc)
 					goto out;
 
@@ -2700,7 +2725,7 @@ static int ocontext_read(struct policydb *p,
 					goto out;
 
 				len = le32_to_cpu(buf[1]);
-				rc = str_read(&c->u.name, GFP_KERNEL, fp, len);
+				rc = str_read_fsname(&c->u.name, GFP_KERNEL, fp, len);
 				if (rc)
 					goto out;
 
@@ -2766,7 +2791,9 @@ static int ocontext_read(struct policydb *p,
 				len = le32_to_cpu(buf[0]);
 
 				rc = str_read(&c->u.ibendport.dev_name,
-					      GFP_KERNEL, fp, len);
+					      GFP_KERNEL, fp, len,
+					      STR_UNCONSTRAINT,
+					      INFINIBAND_DEVNAME_MAXLENGTH);
 				if (rc)
 					goto out;
 
@@ -2834,7 +2861,8 @@ int policydb_read(struct policydb *p, struct policy_file *fp)
 		goto bad;
 	}
 
-	rc = str_read(&policydb_str, GFP_KERNEL, fp, len);
+	rc = str_read(&policydb_str, GFP_KERNEL, fp, len,
+		      STR_UNCONSTRAINT, strlen(POLICYDB_STRING));
 	if (rc) {
 		if (rc == -ENOMEM) {
 			pr_err("SELinux:  unable to allocate memory for policydb string of length %d\n",

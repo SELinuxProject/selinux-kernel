@@ -12,8 +12,6 @@
 #include "policydb.h"
 #include "../include/conditional.h"
 
-#define COND_EXPR_MAXDEPTH 10
-
 /*
  * A conditional expression is a list of operators and operands
  * in reverse polish notation.

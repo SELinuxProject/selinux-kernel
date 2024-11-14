@@ -245,7 +245,8 @@ int cond_index_bool(void *key, void *datum, void *datap)
 	booldatum = datum;
 	p = datap;
 
-	if (!booldatum->value || booldatum->value > p->p_bools.nprim)
+	if (!booldatum->value || booldatum->value > p->p_bools.nprim ||
+	    booldatum->value > IDENTIFIER_MAXVALUE)
 		return -EINVAL;
 
 	p->sym_val_to_name[SYM_BOOLS][booldatum->value - 1] = key;
@@ -280,7 +281,7 @@ int cond_read_bool(struct policydb *p, struct symtab *s, struct policy_file *fp)
 
 	len = le32_to_cpu(buf[2]);
 
-	rc = str_read(&key, GFP_KERNEL, fp, len);
+	rc = str_read_bool(&key, GFP_KERNEL, fp, len);
 	if (rc)
 		goto err;
 

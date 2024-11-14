@@ -19,8 +19,6 @@
 
 #include "ebitmap.h"
 
-#define CEXPR_MAXDEPTH 5
-
 struct constraint_expr {
 #define CEXPR_NOT   1 /* not expr */
 #define CEXPR_AND   2 /* expr and expr */
