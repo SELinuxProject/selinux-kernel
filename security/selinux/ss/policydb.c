@@ -673,6 +673,84 @@ static int (*const index_f[SYM_NUM])(void *key, void *datum, void *datap) = {
 };
 /* clang-format on */
 
+static int role_validate(void *key, void *datum, void *datap)
+{
+	const struct policydb *p = datap;
+	const struct role_datum *role = datum;
+	struct ebitmap_node *node;
+	u32 i;
+
+	ebitmap_for_each_positive_bit(&role->dominates, node, i) {
+		if (!policydb_role_isvalid(p, i))
+			goto bad;
+	}
+
+	ebitmap_for_each_positive_bit(&role->types, node, i) {
+		if (!policydb_type_isvalid(p, i + 1))
+			goto bad;
+	}
+
+	return 0;
+
+bad:
+	pr_err("SELinux:  invalid role %s\n", sym_name(p, SYM_ROLES, role->value - 1));
+	return -EINVAL;
+}
+
+static int user_validate(void *key, void *datum, void *datap)
+{
+	const struct policydb *p = datap;
+	const struct user_datum *usrdatum = datum;
+	struct ebitmap_node *node;
+	u32 i;
+
+	ebitmap_for_each_positive_bit(&usrdatum->roles, node, i) {
+		if (!policydb_role_isvalid(p, i))
+			goto bad;
+	}
+
+	if (!mls_range_isvalid(p, &usrdatum->range))
+		goto bad;
+
+	if (!mls_level_isvalid(p, &usrdatum->dfltlevel))
+		goto bad;
+
+	return 0;
+
+bad:
+	pr_err("SELinux:  invalid user %s\n", sym_name(p, SYM_USERS, usrdatum->value - 1));
+	return -EINVAL;
+}
+
+static int sens_validate(void *key, void *datum, void *datap)
+{
+	const struct policydb *p = datap;
+	const struct level_datum *levdatum = datum;
+
+	if (!mls_level_isvalid(p, &levdatum->level))
+		goto bad;
+
+	return 0;
+
+bad:
+	pr_err("SELinux:  invalid sensitivity\n");
+	return -EINVAL;
+}
+
+
+/* clang-format off */
+static int (*const validate_f[SYM_NUM])(void *key, void *datum, void *datap) = {
+	NULL, /* Everything validated in common_read() and common_index() */
+	NULL, /* Everything validated in class_read() and class_index() */
+	role_validate,
+	NULL, /* Everything validated in type_read(), type_index() and type_bounds_sanity_check() */
+	user_validate,
+	NULL, /* Everything validated in cond_read_bool() and cond_index_bool() */
+	sens_validate,
+	NULL, /* Everything validated in cat_read() and cat_index() */
+};
+/* clang-format on */
+
 #ifdef CONFIG_SECURITY_SELINUX_DEBUG
 static void hash_eval(struct hashtab *h, const char *hash_name,
 		      const char *hash_details)
@@ -765,6 +843,16 @@ static int policydb_index(struct policydb *p)
 		if (rc)
 			goto out;
 	}
+
+	for (i = 0; i < SYM_NUM; i++) {
+		if (!validate_f[i])
+			continue;
+
+		rc = hashtab_map(&p->symtab[i].table, validate_f[i], p);
+		if (rc)
+			goto out;
+	}
+
 	rc = 0;
 out:
 	return rc;
@@ -1085,6 +1173,12 @@ static int context_read_and_validate(struct context *c, struct policydb *p,
 		rc = mls_read_range_helper(&c->range, fp);
 		if (rc) {
 			pr_err("SELinux: error reading MLS range of context\n");
+			goto out;
+		}
+
+		rc = -EINVAL;
+		if (!mls_range_isvalid(p, &c->range)) {
+			pr_warn("SELinux: invalid range in security context\n");
 			goto out;
 		}
 	}
