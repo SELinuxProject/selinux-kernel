@@ -945,6 +945,13 @@ int policydb_type_isvalid(struct policydb *p, unsigned int type)
 	return 1;
 }
 
+int policydb_boolean_isvalid(const struct policydb *p, u32 boolean)
+{
+	if (!boolean || boolean > p->p_bools.nprim)
+		return 0;
+	return 1;
+}
+
 /*
  * Return 1 if the fields in the security context
  * structure `c' are valid.  Return 0 otherwise.
