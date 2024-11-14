@@ -37,6 +37,8 @@
 #include "mls.h"
 #include "services.h"
 
+#define cmp_int(a, b) (((a) > (b)) - ((a) < (b)))
+
 #ifdef CONFIG_SECURITY_SELINUX_DEBUG
 /* clang-format off */
 static const char *const symtab_name[SYM_NUM] = {
@@ -424,11 +426,11 @@ static int filenametr_cmp(const void *k1, const void *k2)
 	const struct filename_trans_key *ft2 = k2;
 	int v;
 
-	v = ft1->ttype - ft2->ttype;
+	v = cmp_int(ft1->ttype, ft2->ttype);
 	if (v)
 		return v;
 
-	v = ft1->tclass - ft2->tclass;
+	v = cmp_int(ft1->tclass, ft2->tclass);
 	if (v)
 		return v;
 
@@ -459,15 +461,15 @@ static int rangetr_cmp(const void *k1, const void *k2)
 	const struct range_trans *key1 = k1, *key2 = k2;
 	int v;
 
-	v = key1->source_type - key2->source_type;
+	v = cmp_int(key1->source_type, key2->source_type);
 	if (v)
 		return v;
 
-	v = key1->target_type - key2->target_type;
+	v = cmp_int(key1->target_type, key2->target_type);
 	if (v)
 		return v;
 
-	v = key1->target_class - key2->target_class;
+	v = cmp_int(key1->target_class, key2->target_class);
 
 	return v;
 }
@@ -496,15 +498,15 @@ static int role_trans_cmp(const void *k1, const void *k2)
 	const struct role_trans_key *key1 = k1, *key2 = k2;
 	int v;
 
-	v = key1->role - key2->role;
+	v = cmp_int(key1->role, key2->role);
 	if (v)
 		return v;
 
-	v = key1->type - key2->type;
+	v = cmp_int(key1->type, key2->type);
 	if (v)
 		return v;
 
-	return key1->tclass - key2->tclass;
+	return cmp_int(key1->tclass, key2->tclass);
 }
 
 static const struct hashtab_key_params roletr_key_params = {
