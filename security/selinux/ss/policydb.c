@@ -1257,6 +1257,8 @@ static int read_cons_helper(struct policydb *p, struct constraint_node **nodep,
 			return rc;
 		c->permissions = le32_to_cpu(buf[0]);
 		nexpr = le32_to_cpu(buf[1]);
+		if (nexpr == 0)
+			return -EINVAL;
 		le = NULL;
 		depth = -1;
 		for (j = 0; j < nexpr; j++) {
@@ -1288,15 +1290,70 @@ static int read_cons_helper(struct policydb *p, struct constraint_node **nodep,
 				depth--;
 				break;
 			case CEXPR_ATTR:
-				if (depth == (CEXPR_MAXDEPTH - 1))
+				if (depth >= (CEXPR_MAXDEPTH - 1))
 					return -EINVAL;
 				depth++;
+				break;
+
+				switch (e->op) {
+				case CEXPR_EQ:
+				case CEXPR_NEQ:
+					break;
+				case CEXPR_DOM:
+				case CEXPR_DOMBY:
+				case CEXPR_INCOMP:
+					if ((e->attr & CEXPR_USER) || (e->attr & CEXPR_TYPE))
+						return -EINVAL;
+					break;
+				default:
+					return -EINVAL;
+				}
+
+				switch (e->attr) {
+				case CEXPR_USER:
+				case CEXPR_ROLE:
+				case CEXPR_TYPE:
+				case CEXPR_L1L2:
+				case CEXPR_L1H2:
+				case CEXPR_H1L2:
+				case CEXPR_H1H2:
+				case CEXPR_L1H1:
+				case CEXPR_L2H2:
+					break;
+				default:
+					return -EINVAL;
+				}
+
 				break;
 			case CEXPR_NAMES:
 				if (!allowxtarget && (e->attr & CEXPR_XTARGET))
 					return -EINVAL;
-				if (depth == (CEXPR_MAXDEPTH - 1))
+				if (depth >= (CEXPR_MAXDEPTH - 1))
 					return -EINVAL;
+
+				switch (e->op) {
+				case CEXPR_EQ:
+				case CEXPR_NEQ:
+					break;
+				default:
+					return -EINVAL;
+				}
+
+				switch (e->attr) {
+				case CEXPR_USER:
+				case CEXPR_USER | CEXPR_TARGET:
+				case CEXPR_USER | CEXPR_XTARGET:
+				case CEXPR_ROLE:
+				case CEXPR_ROLE | CEXPR_TARGET:
+				case CEXPR_ROLE | CEXPR_XTARGET:
+				case CEXPR_TYPE:
+				case CEXPR_TYPE | CEXPR_TARGET:
+				case CEXPR_TYPE | CEXPR_XTARGET:
+					break;
+				default:
+					return -EINVAL;
+				}
+
 				depth++;
 				rc = ebitmap_read(&e->names, fp);
 				if (rc)
