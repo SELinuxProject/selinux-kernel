@@ -323,6 +323,7 @@ extern int policydb_load_isids(struct policydb *p, struct sidtab *s);
 extern bool policydb_context_isvalid(const struct policydb *p, const struct context *c);
 extern bool policydb_class_isvalid(const struct policydb *p, u16 class);
 extern bool policydb_type_isvalid(const struct policydb *p, u32 type);
+extern bool policydb_simpletype_isvalid(const struct policydb *p, u32 type);
 extern bool policydb_role_isvalid(const struct policydb *p, u32 role);
 extern bool policydb_user_isvalid(const struct policydb *p, u32 user);
 extern bool policydb_boolean_isvalid(const struct policydb *p, u32 boolean);
