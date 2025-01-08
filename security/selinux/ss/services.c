@@ -278,22 +278,25 @@ static int constraint_expr_eval(struct policydb *policydb,
 	for (e = cexpr; e; e = e->next) {
 		switch (e->expr_type) {
 		case CEXPR_NOT:
-			BUG_ON(sp < 0);
+			if (unlikely(sp < 0))
+				goto invalid;
 			s[sp] = !s[sp];
 			break;
 		case CEXPR_AND:
-			BUG_ON(sp < 1);
+			if (unlikely(sp < 1))
+				goto invalid;
 			sp--;
 			s[sp] &= s[sp + 1];
 			break;
 		case CEXPR_OR:
-			BUG_ON(sp < 1);
+			if (unlikely(sp < 1))
+				goto invalid;
 			sp--;
 			s[sp] |= s[sp + 1];
 			break;
 		case CEXPR_ATTR:
-			if (sp == (CEXPR_MAXDEPTH - 1))
-				return 0;
+			if (unlikely(sp >= (CEXPR_MAXDEPTH - 1)))
+				goto invalid;
 			switch (e->attr) {
 			case CEXPR_USER:
 				val1 = scontext->user;
@@ -369,13 +372,11 @@ mls_ops:
 					s[++sp] = mls_level_incomp(l2, l1);
 					continue;
 				default:
-					BUG();
-					return 0;
+					goto invalid;
 				}
 				break;
 			default:
-				BUG();
-				return 0;
+				goto invalid;
 			}
 
 			switch (e->op) {
@@ -386,22 +387,19 @@ mls_ops:
 				s[++sp] = (val1 != val2);
 				break;
 			default:
-				BUG();
-				return 0;
+				goto invalid;
 			}
 			break;
 		case CEXPR_NAMES:
-			if (sp == (CEXPR_MAXDEPTH-1))
-				return 0;
+			if (unlikely(sp >= (CEXPR_MAXDEPTH-1)))
+				goto invalid;
 			c = scontext;
 			if (e->attr & CEXPR_TARGET)
 				c = tcontext;
 			else if (e->attr & CEXPR_XTARGET) {
 				c = xcontext;
-				if (!c) {
-					BUG();
-					return 0;
-				}
+				if (unlikely(!c))
+					goto invalid;
 			}
 			if (e->attr & CEXPR_USER)
 				val1 = c->user;
@@ -409,10 +407,8 @@ mls_ops:
 				val1 = c->role;
 			else if (e->attr & CEXPR_TYPE)
 				val1 = c->type;
-			else {
-				BUG();
-				return 0;
-			}
+			else
+				goto invalid;
 
 			switch (e->op) {
 			case CEXPR_EQ:
@@ -422,18 +418,25 @@ mls_ops:
 				s[++sp] = !ebitmap_get_bit(&e->names, val1 - 1);
 				break;
 			default:
-				BUG();
-				return 0;
+				goto invalid;
 			}
 			break;
 		default:
-			BUG();
-			return 0;
+			goto invalid;
 		}
 	}
 
-	BUG_ON(sp != 0);
+	if (unlikely(sp != 0))
+		goto invalid;
+
 	return s[0];
+
+invalid:
+	/* Should *never* be reached, cause malformed constraints should
+	 * have been filtered by read_cons_helper().
+	 */
+	WARN_ONCE(true, "SELinux: invalid constraint passed validation\n");
+	return 0;
 }
 
 /*
@@ -444,8 +447,6 @@ static int dump_masked_av_helper(void *k, void *d, void *args)
 {
 	struct perm_datum *pdatum = d;
 	char **permission_names = args;
-
-	BUG_ON(pdatum->value < 1 || pdatum->value > 32);
 
 	permission_names[pdatum->value - 1] = (char *)k;
 
@@ -462,10 +463,10 @@ static void security_dump_masked_av(struct policydb *policydb,
 	struct common_datum *common_dat;
 	struct class_datum *tclass_dat;
 	struct audit_buffer *ab;
-	char *tclass_name;
+	const char *tclass_name;
 	char *scontext_name = NULL;
 	char *tcontext_name = NULL;
-	char *permission_names[32];
+	char *permission_names[SEL_VEC_MAX];
 	int index;
 	u32 length;
 	bool need_comma = false;
@@ -506,7 +507,7 @@ static void security_dump_masked_av(struct policydb *policydb,
 			 "scontext=%s tcontext=%s tclass=%s perms=",
 			 reason, scontext_name, tcontext_name, tclass_name);
 
-	for (index = 0; index < 32; index++) {
+	for (index = 0; index < SEL_VEC_MAX; index++) {
 		u32 mask = (1 << index);
 
 		if ((mask & permissions) == 0)
@@ -710,6 +711,9 @@ static void context_struct_compute_av(struct policydb *policydb,
 	 * If the given source and target types have boundary
 	 * constraint, lazy checks have to mask any violated
 	 * permission and notice it to userspace via audit.
+	 *
+	 * Infinite recursion is avoided via a depth pre-check in
+	 * type_bounds_sanity_check().
 	 */
 	type_attribute_bounds_av(policydb, scontext, tcontext,
 				 tclass, avd);
@@ -3350,7 +3354,7 @@ static int get_classes_callback(void *k, void *d, void *args)
 {
 	struct class_datum *datum = d;
 	char *name = k, **classes = args;
-	u32 value = datum->value - 1;
+	u16 value = datum->value - 1;
 
 	classes[value] = kstrdup(name, GFP_ATOMIC);
 	if (!classes[value])

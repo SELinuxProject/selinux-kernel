@@ -12,6 +12,7 @@
 
 #include "security.h"
 #include "conditional.h"
+#include "policydb.h"
 #include "services.h"
 
 /*
@@ -20,65 +21,119 @@
  * or undefined (-1). Undefined occurs when the expression
  * exceeds the stack depth of COND_EXPR_MAXDEPTH.
  */
-static int cond_evaluate_expr(struct policydb *p, struct cond_expr *expr)
+static int cond_evaluate_expr(const struct policydb *p, const struct cond_expr *expr)
 {
 	u32 i;
 	int s[COND_EXPR_MAXDEPTH];
 	int sp = -1;
 
-	if (expr->len == 0)
-		return -1;
+	if (unlikely(expr->len == 0))
+		goto invalid;
 
 	for (i = 0; i < expr->len; i++) {
-		struct cond_expr_node *node = &expr->nodes[i];
+		const struct cond_expr_node *node = &expr->nodes[i];
 
 		switch (node->expr_type) {
 		case COND_BOOL:
-			if (sp == (COND_EXPR_MAXDEPTH - 1))
-				return -1;
+			if (unlikely(sp >= (COND_EXPR_MAXDEPTH - 1)))
+				goto invalid;
 			sp++;
 			s[sp] = p->bool_val_to_struct[node->boolean - 1]->state;
 			break;
 		case COND_NOT:
-			if (sp < 0)
-				return -1;
+			if (unlikely(sp < 0))
+				goto invalid;
 			s[sp] = !s[sp];
 			break;
 		case COND_OR:
-			if (sp < 1)
-				return -1;
+			if (unlikely(sp < 1))
+				goto invalid;
 			sp--;
 			s[sp] |= s[sp + 1];
 			break;
 		case COND_AND:
-			if (sp < 1)
-				return -1;
+			if (unlikely(sp < 1))
+				goto invalid;
 			sp--;
 			s[sp] &= s[sp + 1];
 			break;
 		case COND_XOR:
-			if (sp < 1)
-				return -1;
+			if (unlikely(sp < 1))
+				goto invalid;
 			sp--;
 			s[sp] ^= s[sp + 1];
 			break;
 		case COND_EQ:
-			if (sp < 1)
-				return -1;
+			if (unlikely(sp < 1))
+				goto invalid;
 			sp--;
 			s[sp] = (s[sp] == s[sp + 1]);
 			break;
 		case COND_NEQ:
-			if (sp < 1)
-				return -1;
+			if (unlikely(sp < 1))
+				goto invalid;
 			sp--;
 			s[sp] = (s[sp] != s[sp + 1]);
 			break;
 		default:
-			return -1;
+			goto invalid;
 		}
 	}
+
+	if (unlikely(sp != 0))
+		goto invalid;
+
 	return s[0];
+
+invalid:
+	/* Should *never* be reached, cause malformed expressions should
+	 * have been filtered by cond_validate_expr().
+	 */
+	WARN_ONCE(true, "SELinux: invalid conditional expression passed validation\n");
+	return -1;
+}
+
+static int cond_validate_expr(const struct policydb *p, const struct cond_expr *expr)
+{
+	u32 i;
+	int depth = -1;
+
+	if (expr->len == 0)
+		return -EINVAL;
+
+	for (i = 0; i < expr->len; i++) {
+		const struct cond_expr_node *node = &expr->nodes[i];
+
+		switch (node->expr_type) {
+		case COND_BOOL:
+			if (depth >= (COND_EXPR_MAXDEPTH - 1))
+				return -EINVAL;
+			depth++;
+			if (!policydb_boolean_isvalid(p, node->boolean))
+				return -EINVAL;
+			break;
+		case COND_NOT:
+			if (depth < 0)
+				return -EINVAL;
+			break;
+		case COND_OR:
+		case COND_AND:
+		case COND_XOR:
+		case COND_EQ:
+		case COND_NEQ:
+			if (depth < 1)
+				return -EINVAL;
+			depth--;
+			break;
+		default:
+			return -EINVAL;
+		}
+	}
+
+	if (depth != 0)
+		return -EINVAL;
+
+	return 0;
 }
 
 /*
@@ -199,19 +254,12 @@ int cond_index_bool(void *key, void *datum, void *datap)
 	return 0;
 }
 
-static int bool_isvalid(struct cond_bool_datum *b)
-{
-	if (!(b->state == 0 || b->state == 1))
-		return 0;
-	return 1;
-}
-
 int cond_read_bool(struct policydb *p, struct symtab *s, struct policy_file *fp)
 {
 	char *key = NULL;
 	struct cond_bool_datum *booldatum;
 	__le32 buf[3];
-	u32 len;
+	u32 len, val;
 	int rc;
 
 	booldatum = kzalloc(sizeof(*booldatum), GFP_KERNEL);
@@ -223,15 +271,16 @@ int cond_read_bool(struct policydb *p, struct symtab *s, struct policy_file *fp)
 		goto err;
 
 	booldatum->value = le32_to_cpu(buf[0]);
-	booldatum->state = le32_to_cpu(buf[1]);
+	val = le32_to_cpu(buf[1]);
 
 	rc = -EINVAL;
-	if (!bool_isvalid(booldatum))
+	if (!val_is_boolean(val))
 		goto err;
+	booldatum->state = (int)val;
 
 	len = le32_to_cpu(buf[2]);
 
-	rc = str_read(&key, GFP_KERNEL, fp, len);
+	rc = str_read_bool(&key, GFP_KERNEL, fp, len);
 	if (rc)
 		goto err;
 
@@ -241,6 +290,7 @@ int cond_read_bool(struct policydb *p, struct symtab *s, struct policy_file *fp)
 
 	return 0;
 err:
+	pr_err("SELinux: conditional: failed to read boolean\n");
 	cond_destroy_bool(key, booldatum, NULL);
 	return rc;
 }
@@ -334,6 +384,11 @@ static int cond_read_av_list(struct policydb *p, struct policy_file *fp,
 	if (len == 0)
 		return 0;
 
+	/* avtab_read_item() reads at least 96 bytes for any valid entry */
+	rc = size_check(3 * sizeof(u32), len, fp);
+	if (rc)
+		return rc;
+
 	list->nodes = kcalloc(len, sizeof(*list->nodes), GFP_KERNEL);
 	if (!list->nodes)
 		return -ENOMEM;
@@ -355,20 +410,6 @@ static int cond_read_av_list(struct policydb *p, struct policy_file *fp,
 	return 0;
 }
 
-static int expr_node_isvalid(struct policydb *p, struct cond_expr_node *expr)
-{
-	if (expr->expr_type <= 0 || expr->expr_type > COND_LAST) {
-		pr_err("SELinux: conditional expressions uses unknown operator.\n");
-		return 0;
-	}
-
-	if (expr->boolean > p->p_bools.nprim) {
-		pr_err("SELinux: conditional expressions uses unknown bool.\n");
-		return 0;
-	}
-	return 1;
-}
-
 static int cond_read_node(struct policydb *p, struct cond_node *node, struct policy_file *fp)
 {
 	__le32 buf[2];
@@ -383,6 +424,14 @@ static int cond_read_node(struct policydb *p, struct cond_node *node, struct pol
 
 	/* expr */
 	len = le32_to_cpu(buf[1]);
+	if (len == 0)
+		return -EINVAL;
+
+	/* we will read 64 bytes per node */
+	rc = size_check(2 * sizeof(u32), len, fp);
+	if (rc)
+		return rc;
+
 	node->expr.nodes = kcalloc(len, sizeof(*node->expr.nodes), GFP_KERNEL);
 	if (!node->expr.nodes)
 		return -ENOMEM;
@@ -398,9 +447,12 @@ static int cond_read_node(struct policydb *p, struct cond_node *node, struct pol
 
 		expr->expr_type = le32_to_cpu(buf[0]);
 		expr->boolean = le32_to_cpu(buf[1]);
+	}
 
-		if (!expr_node_isvalid(p, expr))
-			return -EINVAL;
+	rc = cond_validate_expr(p, &node->expr);
+	if (rc) {
+		pr_err("SELinux: invalid conditional expression\n");
+		return rc;
 	}
 
 	rc = cond_read_av_list(p, fp, &node->true_list, NULL);
@@ -420,6 +472,11 @@ int cond_read_list(struct policydb *p, struct policy_file *fp)
 		return rc;
 
 	len = le32_to_cpu(buf[0]);
+
+	/* cond_read_node() reads at least 128 bytes for any valid node */
+	rc = size_check(4 * sizeof(u32), len, fp);
+	if (rc)
+		return rc;
 
 	p->cond_list = kcalloc(len, sizeof(*p->cond_list), GFP_KERNEL);
 	if (!p->cond_list)
