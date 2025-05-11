@@ -1267,10 +1267,12 @@ static int context_struct_to_string(struct policydb *p,
 				    char **scontext, u32 *scontext_len)
 {
 	char *scontextp;
+	size_t len;
+	int mls_len;
 
 	if (scontext)
 		*scontext = NULL;
-	*scontext_len = 0;
+	len = 0;
 
 	if (context->len) {
 		*scontext_len = context->len;
@@ -1283,16 +1285,45 @@ static int context_struct_to_string(struct policydb *p,
 	}
 
 	/* Compute the size of the context. */
-	*scontext_len += strlen(sym_name(p, SYM_USERS, context->user - 1)) + 1;
-	*scontext_len += strlen(sym_name(p, SYM_ROLES, context->role - 1)) + 1;
-	*scontext_len += strlen(sym_name(p, SYM_TYPES, context->type - 1)) + 1;
-	*scontext_len += mls_compute_context_len(p, context);
+	len += strlen(sym_name(p, SYM_USERS, context->user - 1)) + 1;
+	len += strlen(sym_name(p, SYM_ROLES, context->role - 1)) + 1;
+	len += strlen(sym_name(p, SYM_TYPES, context->type - 1)) + 1;
+
+	mls_len = mls_compute_context_len(p, context);
+	if (unlikely(mls_len < 0)) {
+		pr_warn_ratelimited("SELinux: %s:  MLS security context component too large [%s:%s:%s[:[%s:%d]-[%s:%d]]]\n",
+				    __func__,
+				    sym_name(p, SYM_USERS, context->user - 1),
+				    sym_name(p, SYM_ROLES, context->role - 1),
+				    sym_name(p, SYM_TYPES, context->type - 1),
+				    sym_name(p, SYM_LEVELS, context->range.level[0].sens - 1),
+				    ebitmap_length(&context->range.level[0].cat),
+				    sym_name(p, SYM_LEVELS, context->range.level[1].sens - 1),
+				    ebitmap_length(&context->range.level[1].cat));
+		return -EOVERFLOW;
+	}
+
+	if (unlikely(check_add_overflow(len, mls_len, &len) || len > CONTEXT_MAXLENGTH)) {
+		pr_warn_ratelimited("SELinux: %s:  security context string of length %zu too large [%s:%s:%s[:[%s:%d]-[%s:%d]]]\n",
+				    __func__,
+				    len,
+				    sym_name(p, SYM_USERS, context->user - 1),
+				    sym_name(p, SYM_ROLES, context->role - 1),
+				    sym_name(p, SYM_TYPES, context->type - 1),
+				    sym_name(p, SYM_LEVELS, context->range.level[0].sens - 1),
+				    ebitmap_length(&context->range.level[0].cat),
+				    sym_name(p, SYM_LEVELS, context->range.level[1].sens - 1),
+				    ebitmap_length(&context->range.level[1].cat));
+		return -EOVERFLOW;
+	}
+
+	*scontext_len = len;
 
 	if (!scontext)
 		return 0;
 
 	/* Allocate space for the context; caller must free this space. */
-	scontextp = kmalloc(*scontext_len, GFP_ATOMIC);
+	scontextp = kmalloc(len, GFP_ATOMIC);
 	if (!scontextp)
 		return -ENOMEM;
 	*scontext = scontextp;

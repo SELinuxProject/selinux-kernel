@@ -42,7 +42,8 @@ int mls_compute_context_len(struct policydb *p, struct context *context)
 	len = 1; /* for the beginning ":" */
 	for (l = 0; l < 2; l++) {
 		u32 index_sens = context->range.level[l].sens;
-		len += strlen(sym_name(p, SYM_LEVELS, index_sens - 1));
+		if (check_add_overflow(len, strlen(sym_name(p, SYM_LEVELS, index_sens - 1)), &len))
+			return -EOVERFLOW;
 
 		/* categories */
 		head = -2;
@@ -54,24 +55,29 @@ int mls_compute_context_len(struct policydb *p, struct context *context)
 				/* one or more negative bits are skipped */
 				if (head != prev) {
 					nm = sym_name(p, SYM_CATS, prev);
-					len += strlen(nm) + 1;
+					if (check_add_overflow(len, strlen(nm) + 1, &len))
+						return -EOVERFLOW;
 				}
 				nm = sym_name(p, SYM_CATS, i);
-				len += strlen(nm) + 1;
+				if (check_add_overflow(len, strlen(nm) + 1, &len))
+					return -EOVERFLOW;
 				head = i;
 			}
 			prev = i;
 		}
 		if (prev != head) {
 			nm = sym_name(p, SYM_CATS, prev);
-			len += strlen(nm) + 1;
+			if (check_add_overflow(len, strlen(nm) + 1, &len))
+				return -EOVERFLOW;
 		}
 		if (l == 0) {
 			if (mls_level_eq(&context->range.level[0],
 					 &context->range.level[1]))
 				break;
-			else
-				len++;
+			else {
+				if (check_add_overflow(len, 1, &len))
+					return -EOVERFLOW;
+			}
 		}
 	}
 
