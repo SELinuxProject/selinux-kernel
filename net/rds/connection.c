@@ -255,6 +255,7 @@ static struct rds_connection *__rds_conn_create(struct net *net,
 				 * does, reset/destroy the connection.
 				 */
 				kfree(conn->c_path);
+				kfree(conn->c_path);
 				kmem_cache_free(rds_conn_slab, conn);
 				conn = ERR_PTR(-EOPNOTSUPP);
 				goto out;
