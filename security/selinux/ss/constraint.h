@@ -19,8 +19,6 @@
 
 #include "ebitmap.h"
 
-#define CEXPR_MAXDEPTH 5
-
 struct constraint_expr {
 #define CEXPR_NOT   1 /* not expr */
 #define CEXPR_AND   2 /* expr and expr */
@@ -50,6 +48,7 @@ struct constraint_expr {
 	u32 op; /* operator */
 
 	struct ebitmap names; /* names */
+	/* internally unused, only forwarded via policydb_write() */
 	struct type_set *type_names;
 
 	struct constraint_expr *next; /* next expression */

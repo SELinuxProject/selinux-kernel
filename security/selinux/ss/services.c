@@ -279,22 +279,25 @@ static int constraint_expr_eval(struct policydb *policydb,
 	for (e = cexpr; e; e = e->next) {
 		switch (e->expr_type) {
 		case CEXPR_NOT:
-			BUG_ON(sp < 0);
+			if (unlikely(sp < 0))
+				goto invalid;
 			s[sp] = !s[sp];
 			break;
 		case CEXPR_AND:
-			BUG_ON(sp < 1);
+			if (unlikely(sp < 1))
+				goto invalid;
 			sp--;
 			s[sp] &= s[sp + 1];
 			break;
 		case CEXPR_OR:
-			BUG_ON(sp < 1);
+			if (unlikely(sp < 1))
+				goto invalid;
 			sp--;
 			s[sp] |= s[sp + 1];
 			break;
 		case CEXPR_ATTR:
-			if (sp == (CEXPR_MAXDEPTH - 1))
-				return 0;
+			if (unlikely(sp >= (CEXPR_MAXDEPTH - 1)))
+				goto invalid;
 			switch (e->attr) {
 			case CEXPR_USER:
 				val1 = scontext->user;
@@ -370,13 +373,11 @@ mls_ops:
 					s[++sp] = mls_level_incomp(l2, l1);
 					continue;
 				default:
-					BUG();
-					return 0;
+					goto invalid;
 				}
 				break;
 			default:
-				BUG();
-				return 0;
+				goto invalid;
 			}
 
 			switch (e->op) {
@@ -387,22 +388,19 @@ mls_ops:
 				s[++sp] = (val1 != val2);
 				break;
 			default:
-				BUG();
-				return 0;
+				goto invalid;
 			}
 			break;
 		case CEXPR_NAMES:
-			if (sp == (CEXPR_MAXDEPTH-1))
-				return 0;
+			if (unlikely(sp >= (CEXPR_MAXDEPTH-1)))
+				goto invalid;
 			c = scontext;
 			if (e->attr & CEXPR_TARGET)
 				c = tcontext;
 			else if (e->attr & CEXPR_XTARGET) {
 				c = xcontext;
-				if (!c) {
-					BUG();
-					return 0;
-				}
+				if (unlikely(!c))
+					goto invalid;
 			}
 			if (e->attr & CEXPR_USER)
 				val1 = c->user;
@@ -410,10 +408,8 @@ mls_ops:
 				val1 = c->role;
 			else if (e->attr & CEXPR_TYPE)
 				val1 = c->type;
-			else {
-				BUG();
-				return 0;
-			}
+			else
+				goto invalid;
 
 			switch (e->op) {
 			case CEXPR_EQ:
@@ -423,18 +419,25 @@ mls_ops:
 				s[++sp] = !ebitmap_get_bit(&e->names, val1 - 1);
 				break;
 			default:
-				BUG();
-				return 0;
+				goto invalid;
 			}
 			break;
 		default:
-			BUG();
-			return 0;
+			goto invalid;
 		}
 	}
 
-	BUG_ON(sp != 0);
+	if (unlikely(sp != 0))
+		goto invalid;
+
 	return s[0];
+
+invalid:
+	/* Should *never* be reached, cause malformed constraints should
+	 * have been filtered by read_cons_helper().
+	 */
+	WARN_ONCE(true, "SELinux: invalid constraint passed validation\n");
+	return 0;
 }
 
 /*
@@ -445,8 +448,6 @@ static int dump_masked_av_helper(void *k, void *d, void *args)
 {
 	struct perm_datum *pdatum = d;
 	char **permission_names = args;
-
-	BUG_ON(pdatum->value < 1 || pdatum->value > 32);
 
 	permission_names[pdatum->value - 1] = (char *)k;
 
@@ -463,10 +464,10 @@ static void security_dump_masked_av(struct policydb *policydb,
 	struct common_datum *common_dat;
 	struct class_datum *tclass_dat;
 	struct audit_buffer *ab;
-	char *tclass_name;
+	const char *tclass_name;
 	char *scontext_name = NULL;
 	char *tcontext_name = NULL;
-	char *permission_names[32];
+	char *permission_names[SEL_VEC_MAX];
 	int index;
 	u32 length;
 	bool need_comma = false;
@@ -507,7 +508,7 @@ static void security_dump_masked_av(struct policydb *policydb,
 			 "scontext=%s tcontext=%s tclass=%s perms=",
 			 reason, scontext_name, tcontext_name, tclass_name);
 
-	for (index = 0; index < 32; index++) {
+	for (index = 0; index < SEL_VEC_MAX; index++) {
 		u32 mask = (1 << index);
 
 		if ((mask & permissions) == 0)
@@ -717,6 +718,9 @@ static void context_struct_compute_av(struct policydb *policydb,
 	 * If the given source and target types have boundary
 	 * constraint, lazy checks have to mask any violated
 	 * permission and notice it to userspace via audit.
+	 *
+	 * Infinite recursion is avoided via a depth pre-check in
+	 * type_bounds_sanity_check().
 	 */
 	type_attribute_bounds_av(policydb, scontext, tcontext,
 				 tclass, avd);
@@ -1263,10 +1267,12 @@ static int context_struct_to_string(struct policydb *p,
 				    char **scontext, u32 *scontext_len)
 {
 	char *scontextp;
+	size_t len;
+	int mls_len;
 
 	if (scontext)
 		*scontext = NULL;
-	*scontext_len = 0;
+	len = 0;
 
 	if (context->len) {
 		*scontext_len = context->len;
@@ -1279,16 +1285,45 @@ static int context_struct_to_string(struct policydb *p,
 	}
 
 	/* Compute the size of the context. */
-	*scontext_len += strlen(sym_name(p, SYM_USERS, context->user - 1)) + 1;
-	*scontext_len += strlen(sym_name(p, SYM_ROLES, context->role - 1)) + 1;
-	*scontext_len += strlen(sym_name(p, SYM_TYPES, context->type - 1)) + 1;
-	*scontext_len += mls_compute_context_len(p, context);
+	len += strlen(sym_name(p, SYM_USERS, context->user - 1)) + 1;
+	len += strlen(sym_name(p, SYM_ROLES, context->role - 1)) + 1;
+	len += strlen(sym_name(p, SYM_TYPES, context->type - 1)) + 1;
+
+	mls_len = mls_compute_context_len(p, context);
+	if (unlikely(mls_len < 0)) {
+		pr_warn_ratelimited("SELinux: %s:  MLS security context component too large [%s:%s:%s[:[%s:%d]-[%s:%d]]]\n",
+				    __func__,
+				    sym_name(p, SYM_USERS, context->user - 1),
+				    sym_name(p, SYM_ROLES, context->role - 1),
+				    sym_name(p, SYM_TYPES, context->type - 1),
+				    sym_name(p, SYM_LEVELS, context->range.level[0].sens - 1),
+				    ebitmap_length(&context->range.level[0].cat),
+				    sym_name(p, SYM_LEVELS, context->range.level[1].sens - 1),
+				    ebitmap_length(&context->range.level[1].cat));
+		return -EOVERFLOW;
+	}
+
+	if (unlikely(check_add_overflow(len, mls_len, &len) || len > CONTEXT_MAXLENGTH)) {
+		pr_warn_ratelimited("SELinux: %s:  security context string of length %zu too large [%s:%s:%s[:[%s:%d]-[%s:%d]]]\n",
+				    __func__,
+				    len,
+				    sym_name(p, SYM_USERS, context->user - 1),
+				    sym_name(p, SYM_ROLES, context->role - 1),
+				    sym_name(p, SYM_TYPES, context->type - 1),
+				    sym_name(p, SYM_LEVELS, context->range.level[0].sens - 1),
+				    ebitmap_length(&context->range.level[0].cat),
+				    sym_name(p, SYM_LEVELS, context->range.level[1].sens - 1),
+				    ebitmap_length(&context->range.level[1].cat));
+		return -EOVERFLOW;
+	}
+
+	*scontext_len = len;
 
 	if (!scontext)
 		return 0;
 
 	/* Allocate space for the context; caller must free this space. */
-	scontextp = kmalloc(*scontext_len, GFP_ATOMIC);
+	scontextp = kmalloc(len, GFP_ATOMIC);
 	if (!scontextp)
 		return -ENOMEM;
 	*scontext = scontextp;
@@ -3413,7 +3448,7 @@ static int get_classes_callback(void *k, void *d, void *args)
 {
 	struct class_datum *datum = d;
 	char *name = k, **classes = args;
-	u32 value = datum->value - 1;
+	u16 value = datum->value - 1;
 
 	classes[value] = kstrdup(name, GFP_ATOMIC);
 	if (!classes[value])
