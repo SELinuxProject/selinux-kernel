@@ -818,8 +818,9 @@ static inline void symtab_hash_eval(struct symtab *s)
  */
 static int policydb_index(struct policydb *p)
 {
+	struct ebitmap_node *node;
 	int i, rc;
-	u32 v;
+	u32 bit, v;
 
 	if (p->mls_enabled)
 		pr_debug(
@@ -901,6 +902,23 @@ static int policydb_index(struct policydb *p)
 	rc = hashtab_map(&p->p_users.table, user_index_check, p);
 	if (rc)
 		goto out;
+
+	ebitmap_for_each_positive_bit(&p->permissive_map, node, bit) {
+		if (!policydb_simpletype_isvalid(p, bit)) {
+			pr_err("SELinux:  permissive map refers to invalid type %u\n",
+			       bit);
+			rc = -EINVAL;
+			goto out;
+		}
+	}
+	ebitmap_for_each_positive_bit(&p->neveraudit_map, node, bit) {
+		if (!policydb_simpletype_isvalid(p, bit)) {
+			pr_err("SELinux:  neveraudit map refers to invalid type %u\n",
+			       bit);
+			rc = -EINVAL;
+			goto out;
+		}
+	}
 
 	rc = 0;
 out:
