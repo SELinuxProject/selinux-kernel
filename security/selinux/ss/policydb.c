@@ -748,6 +748,20 @@ static int user_index_check(void *key, void *datum, void *datap)
 		}
 	}
 
+	if (p->mls_enabled) {
+		if (!mls_range_isvalid(p, &usr->range)) {
+			pr_err("SELinux:  user %s has an invalid MLS range\n",
+			       (const char *)key);
+			return -EINVAL;
+		}
+
+		if (!mls_level_isvalid(p, &usr->dfltlevel)) {
+			pr_err("SELinux:  user %s has an invalid MLS default level\n",
+			       (const char *)key);
+			return -EINVAL;
+		}
+	}
+
 	return 0;
 }
 
