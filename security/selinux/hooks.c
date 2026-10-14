@@ -31,6 +31,7 @@
 #include <linux/lsm_hooks.h>
 #include <linux/xattr.h>
 #include <linux/capability.h>
+#include <linux/ctype.h>
 #include <linux/unistd.h>
 #include <linux/mm.h>
 #include <linux/mman.h>
@@ -1358,7 +1359,7 @@ static int selinux_genfs_get_sid(struct dentry *dentry,
 			/* each process gets a /proc/PID/ entry. Strip off the
 			 * PID part to get a valid selinux labeling.
 			 * e.g. /proc/1/net/rpc/nfs -> /net/rpc/nfs */
-			while (path[1] >= '0' && path[1] <= '9') {
+			while (isdigit(path[1])) {
 				path[1] = '/';
 				path++;
 			}
