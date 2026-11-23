@@ -242,6 +242,8 @@ static void __ad_net_init(struct common_audit_data *ad,
 	net->netif = ifindex;
 	net->sk = sk;
 	net->family = family;
+	net->sport = 0;
+	net->dport = 0;
 }
 
 static void ad_net_init_from_sk(struct common_audit_data *ad,
